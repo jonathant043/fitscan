@@ -1,41 +1,64 @@
 {
   "expo": {
-    "name": "fitscan",
+    "name": "FitScan",
     "slug": "fitscan",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "sdkVersion": "52.0.0",
+    "orientation": "portrait", // Lock to portrait for simplicity
+    "icon": "./assets/images/adaptive-icon.png",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f8f8f8" // Matches light theme background
+    },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.fitscan",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow FitScan to use the camera to scan workout equipment."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#f8f8f8" // Matches light theme
+      },
+      "package": "com.yourcompany.fitscan",
+      "permissions": ["CAMERA"], // Removed LOCATION for now
+      "googleServicesFile": "./google-services.json" // If adding Firebase later
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "enabled": true
+    },
     "plugins": [
-      "expo-router",
+      "expo-router", // For tab navigation
       [
-        "expo-splash-screen",
+        "expo-notifications",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#007AFF" // Matches primary color
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "permissions": ["Pedometer"]
         }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id" // Replace with real ID
+      }
+    },
+    "description": "A fitness app to scan equipment, generate workouts, and track progress.",
+    "experimental": {
+      "newArchEnabled": true
     }
   }
 }

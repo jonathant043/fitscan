@@ -1,39 +1,88 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View } from 'react-native';
+import TabBarBackground from '@/components/TabBarBackground';
+import { Ionicons } from '@expo/vector-icons';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+// Import Screens
+import HomeScreen from '@/screens/HomeScreen';
+import EquipmentScanScreen from '@/screens/EquipmentScanScreen';
+import WorkoutGenerationScreen from '@/screens/WorkoutGenerationScreen';
+import WorkoutLogScreen from '@/screens/WorkoutLogScreen';
+import LeaderboardsScreen from '@/screens/LeaderboardsScreen';
+import ProfileScreen from '@/screens/ProfileScreen';
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+const Tab = createBottomTabNavigator();
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
+function TabLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: { height: 60 },
+        }}
+      >
+        <Tab.Screen
+          name="home"
+          component={HomeScreen}
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          }}
+        />
+        <Tab.Screen
+          name="scan"
+          component={EquipmentScanScreen}
+          options={{
+            title: 'Scan',
+            tabBarIcon: ({ color, size }) => <Ionicons name="scan-outline" size={size} color={color} />,
+          }}
+        />
+        <Tab.Screen
+          name="workout"
+          component={WorkoutGenerationScreen}
+          options={{
+            title: 'Workout',
+            tabBarIcon: ({ color, size }) => <Ionicons name="barbell-outline" size={size} color={color} />,
+          }}
+        />
+        <Tab.Screen
+          name="logs"
+          component={WorkoutLogScreen}
+          options={{
+            title: 'Logs',
+            tabBarIcon: ({ color, size }) => <Ionicons name="clipboard-outline" size={size} color={color} />,
+          }}
+        />
+        <Tab.Screen
+          name="leaderboard"
+          component={LeaderboardsScreen}
+          options={{
+            title: 'Leaderboard',
+            tabBarIcon: ({ color, size }) => <Ionicons name="trophy-outline" size={size} color={color} />,
+          }}
+        />
+        <Tab.Screen
+          name="profile"
+          component={ProfileScreen}
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          }}
+        />
+      </Tab.Navigator>
+      <TabBarBackground />
+    </View>
+  );
+}
+
+export default function Layout() {
+  return (
+    <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} component={TabLayout} />
+      <Stack.Screen name="fitness" options={{ title: 'Fitness Tracking' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+    </Stack>
   );
 }

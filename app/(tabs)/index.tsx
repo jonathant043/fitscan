@@ -1,74 +1,132 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Link } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useMMKVString } from 'react-native-mmkv';
+import { storage } from '../storage/mmkv'; // Adjust path as needed
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function Home() {
+  const [userName] = useMMKVString('user.name', storage) || 'User';
+  const [age] = useMMKVString('user.age', storage);
+  const isOlder = parseInt(age) > 60;
 
-export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <Text style={[styles.title, isOlder && styles.largerText]}>
+        Welcome back, {userName}!
+      </Text>
+      <Text style={[styles.subtitle, isOlder && styles.largerText]}>
+        Your personal fitness companion.
+      </Text>
+
+      <View style={styles.navContainer}>
+        <Link href="/scan" asChild>
+          <TouchableOpacity style={[styles.navButton, isOlder && styles.largerButton]}>
+            <Ionicons name="camera-outline" size={24} color="#007AFF" />
+            <Text style={[styles.navText, isOlder && styles.largerNavText]}>
+              Scan Equipment
+            </Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/fitness" asChild>
+          <TouchableOpacity style={[styles.navButton, isOlder && styles.largerButton]}>
+            <Ionicons name="barbell-outline" size={24} color="#007AFF" />
+            <Text style={[styles.navText, isOlder && styles.largerNavText]}>
+              Fitness Tracking
+            </Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/profile" asChild>
+          <TouchableOpacity style={[styles.navButton, isOlder && styles.largerButton]}>
+            <Ionicons name="person-outline" size={24} color="#007AFF" />
+            <Text style={[styles.navText, isOlder && styles.largerNavText]}>
+              Profile
+            </Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/workout" asChild>
+          <TouchableOpacity style={[styles.navButton, isOlder && styles.largerButton]}>
+            <Ionicons name="heart-outline" size={24} color="#007AFF" />
+            <Text style={[styles.navText, isOlder && styles.largerNavText]}>
+              Workout Generator
+            </Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/logs" asChild>
+          <TouchableOpacity style={[styles.navButton, isOlder && styles.largerButton]}>
+            <Ionicons name="clipboard-outline" size={24} color="#007AFF" />
+            <Text style={[styles.navText, isOlder && styles.largerNavText]}>
+              Workout Logs
+            </Text>
+          </TouchableOpacity>
+        </Link>
+
+        <Link href="/leaderboard" asChild>
+          <TouchableOpacity style={[styles.navButton, isOlder && styles.largerButton]}>
+            <Ionicons name="trophy-outline" size={24} color="#007AFF" />
+            <Text style={[styles.navText, isOlder && styles.largerNavText]}>
+              Leaderboard
+            </Text>
+          </TouchableOpacity>
+        </Link>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f8f8f8',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+  },
+  navContainer: {
+    width: '100%',
+    marginTop: 20,
+  },
+  navButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    padding: 16,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    marginBottom: 12,
+    height: 60,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  navText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 10,
+    color: '#333',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  largerText: {
+    fontSize: 20,
+  },
+  largerButton: {
+    height: 70,
+  },
+  largerNavText: {
+    fontSize: 18,
   },
 });

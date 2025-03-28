@@ -2,7 +2,13 @@
 
 # dependencies
 node_modules/
-
+.expo/
+.idea/
+.vscode/
+build/
+package-lock.json
+.DS_Store
+npm-debug.log
 # Expo
 .expo/
 dist/
