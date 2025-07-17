@@ -1,64 +1,41 @@
 {
   "expo": {
-    "name": "FitScan",
+    "name": "fitscan",
     "slug": "fitscan",
     "version": "1.0.0",
-    "sdkVersion": "52.0.0",
-    "orientation": "portrait", // Lock to portrait for simplicity
-    "icon": "./assets/images/adaptive-icon.png",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "fitscan",
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f8f8f8" // Matches light theme background
+      "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.fitscan",
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow FitScan to use the camera to scan workout equipment."
+        "NSMotionUsageDescription": "This app uses device motion to track workout movements.",
+        "NSCameraUsageDescription": "This app uses the camera to scan barcodes."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#f8f8f8" // Matches light theme
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.fitscan",
-      "permissions": ["CAMERA"], // Removed LOCATION for now
-      "googleServicesFile": "./google-services.json" // If adding Firebase later
-    },
-    "web": {
-      "favicon": "./assets/images/favicon.png"
-    },
-    "updates": {
-      "fallbackToCacheTimeout": 0,
-      "enabled": true
+      "permissions": [
+        "android.permission.HIGH_SAMPLING_RATE_SENSORS",
+        "android.permission.CAMERA"
+      ]
     },
     "plugins": [
-      "expo-router", // For tab navigation
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/notification-icon.png",
-          "color": "#007AFF" // Matches primary color
-        }
-      ],
-      [
-        "expo-sensors",
-        {
-          "permissions": ["Pedometer"]
-        }
-      ]
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "your-project-id" // Replace with real ID
-      }
-    },
-    "description": "A fitness app to scan equipment, generate workouts, and track progress.",
-    "experimental": {
-      "newArchEnabled": true
-    }
+      "expo-font",
+      "expo-sensors",
+      "expo-router",
+      "expo-camera"
+    ]
   }
 }

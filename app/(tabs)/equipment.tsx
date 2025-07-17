@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-export default function Profile() {
+export default function Equipment() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
-      <Text style={styles.subtitle}>Your fitness profile and stats</Text>
+      <Text style={styles.title}>Equipment</Text>
+      <Text style={styles.subtitle}>Gym equipment scanner and tracker</Text>
     </View>
   );
 }

@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-export default function Profile() {
+export default function Settings() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
-      <Text style={styles.subtitle}>Your fitness profile and stats</Text>
+      <Text style={styles.title}>Settings</Text>
+      <Text style={styles.subtitle}>App settings and preferences</Text>
     </View>
   );
 }
