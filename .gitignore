@@ -13,7 +13,6 @@ npm-debug.log
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 
 # Native
 *.orig.*
@@ -36,6 +35,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -44,3 +44,13 @@ yarn-error.*
 app-example
 *.zip
 fitscan_backup.zip
+
+# Backups & dev artifacts
+*.backup
+backups/
+app_backup*/
+app-structure.txt
+storage/
+
+# Orphaned nested directory
+app/app/

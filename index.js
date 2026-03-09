@@ -51,7 +51,12 @@ function mapToEquipmentKeyFromLabel(label) {
     },
     {
       key: "cable_machine",
-      keywords: ["cable machine", "cable crossover", "functional trainer", "pulley machine"],
+      keywords: [
+        "cable machine",
+        "cable crossover",
+        "functional trainer",
+        "pulley machine",
+      ],
     },
     {
       key: "smith_machine",
@@ -93,6 +98,7 @@ function normalizeConfidence(raw) {
 
 // Fallback recognition when no OPENAI_API_KEY is set
 function fallbackRecognize(profile) {
+  // Minimal but safe default
   const defaultKey = "dumbbell";
 
   const preferred =
@@ -116,11 +122,13 @@ function fallbackRecognize(profile) {
 // Call OpenAI Responses API with base64 image to classify equipment
 async function recognizeWithOpenAI(imageBase64, profile) {
   if (!OPENAI_API_KEY) {
+    // No key configured -> simple fallback
     return fallbackRecognize(profile || {});
   }
 
   const dataUrl = `data:image/jpeg;base64,${imageBase64}`;
 
+  // Build a very constrained prompt so we get structured output
   const systemPrompt =
     "You are an AI that identifies gym and home workout equipment from photos. " +
     "Return ONLY a single line of JSON with the fields: " +
@@ -134,6 +142,7 @@ async function recognizeWithOpenAI(imageBase64, profile) {
     "Ignore people, background objects, and logos. " +
     "If you are unsure, pick the closest reasonable equipment_label and set confidence to 'low'.";
 
+  // Node 18+ has global fetch
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -166,6 +175,7 @@ async function recognizeWithOpenAI(imageBase64, profile) {
   }
 
   const json = await response.json();
+
   const outputText = (json && json.output_text) || "";
 
   const match = outputText.match(/\{[\s\S]*\}/);
@@ -228,7 +238,6 @@ app.post("/equipment/recognize", async (req, res) => {
     }
 
     const result = await recognizeWithOpenAI(image_base64, profile || {});
-    console.log("Recognition result:", result);
     return res.json(result);
   } catch (err) {
     console.error("Recognition error:", err);
