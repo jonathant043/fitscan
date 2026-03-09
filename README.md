@@ -1,298 +1,141 @@
-# FitScan 💪📱
+# FitScan
 
-AI-powered fitness companion app that uses computer vision to identify gym equipment and suggest personalized exercises.
+AI fitness app — point your camera at gym equipment and get a personalized workout instantly.
 
-## Features
+Built with React Native + Expo. Backend lives at [fitscan-backend](https://github.com/jonathant043/fitscan-backend).
 
-- 📷 **Equipment Scanner**: Point your camera at gym equipment and get instant exercise recommendations
-- 🤖 **AI-Powered Recognition**: Uses OpenAI GPT-4o-mini vision to identify equipment
-- 📚 **Exercise Library**: Browse 24+ exercises across 6 muscle groups
-- 👤 **Personalized Profiles**: Save your fitness goals, experience level, and equipment access
-- 🌐 **Offline Support**: Get notified when you're offline with graceful degradation
-- 🎨 **Modern UI**: Clean, dark-themed interface with smooth animations
+---
+
+## What it does
+
+1. **Scan** — open the camera, point at any piece of gym equipment
+2. **Identify** — OpenAI GPT-4o-mini recognizes what it is
+3. **Workout** — get 5 tailored exercises with sets, reps, and coaching cues
+4. **Multi-scan** — queue multiple pieces of equipment to generate one full workout
+
+---
+
+## Screens
+
+| Screen | Description |
+|---|---|
+| Home | Stats, current streak, recent workout history |
+| Scanner | Live camera with AI equipment recognition |
+| Exercises | Browse 100+ exercises by muscle group |
+| Profile | Set experience level, goal, and available equipment |
+| Paywall | Stripe subscription — Basic / Pro / Annual |
+
+---
 
 ## Tech Stack
 
-### Frontend
-- **Framework**: React Native 0.81 with Expo 54
-- **Routing**: Expo Router (file-based)
-- **Language**: TypeScript 5.9
-- **Storage**: AsyncStorage for local persistence
-- **Camera**: Expo Camera for equipment scanning
-- **State**: React hooks (no Redux/MobX)
+- **React Native** 0.81 + **Expo** 54
+- **TypeScript** 5.9
+- **expo-router** — file-based navigation
+- **@stripe/stripe-react-native** — subscription payments
+- **AsyncStorage** — local persistence (no database)
+- **OpenAI GPT-4o-mini** — equipment recognition (via backend)
 
-### Backend
-- **Runtime**: Node.js with Express 5
-- **AI**: OpenAI SDK (GPT-4o-mini vision)
-- **Validation**: Zod for input validation
-- **Security**: Helmet, CORS, rate limiting, optional authentication
-- **Testing**: Jest + Supertest
-
-## Prerequisites
-
-- Node.js 18+ and npm
-- Expo CLI (`npm install -g expo-cli`)
-- iOS Simulator (Mac) or Android Emulator
-- OpenAI API key ([get one here](https://platform.openai.com/api-keys))
+---
 
 ## Getting Started
 
-### 1. Backend Setup
+### Prerequisites
+- Node.js 18+
+- Expo CLI (`npm install -g expo-cli`)
+- Backend running (see [fitscan-backend](https://github.com/jonathant043/fitscan-backend))
+
+### Install
 
 ```bash
-cd fitscan-backend
-
-# Install dependencies
-npm install
-
-# Copy environment template
-cp .env.example .env
-
-# Edit .env and add your OpenAI API key
-# OPENAI_API_KEY=your_key_here
-
-# Start backend server
-npm start
-```
-
-The backend will run on `http://localhost:3001`
-
-### 2. Frontend Setup
-
-```bash
+git clone https://github.com/jonathant043/fitscan.git
 cd fitscan
-
-# Install dependencies
-npm install --legacy-peer-deps
-
-# Copy environment template
-cp .env.example .env
-
-# Edit .env and set your local IP (find with: ipconfig getifaddr en0)
-# EXPO_PUBLIC_BACKEND_URL=http://YOUR_LOCAL_IP:3001
-
-# Start Expo
-npx expo start
+npm install
 ```
 
-Then press:
-- `i` for iOS simulator
-- `a` for Android emulator
-- Scan QR code with Expo Go app for physical device
+### Configure
+
+Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+```env
+# Simulator
+EXPO_PUBLIC_BACKEND_URL=http://localhost:3001
+
+# Physical device — find your IP: ipconfig getifaddr en0
+EXPO_PUBLIC_BACKEND_URL=http://YOUR_LOCAL_IP:3001
+
+# Stripe publishable key (from dashboard.stripe.com/apikeys)
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+### Run
+
+```bash
+npx expo start
+# Press i for iOS simulator
+# Scan QR code for physical device (Expo Go)
+```
+
+---
 
 ## Project Structure
 
 ```
-fitscan/
-├── app/                      # Screens (file-based routing)
-│   ├── index.tsx            # Home/Welcome
-│   ├── equipment-scanner.tsx # Camera scanner
-│   ├── exercises.tsx        # Exercise library
-│   ├── profile.tsx          # User profile
-│   └── _layout.tsx          # Tab navigation
-├── components/              # Reusable components
-│   ├── ErrorBoundary.tsx   # Error handling
-│   ├── OfflineNotice.tsx   # Network status
-│   └── LoadingSkeleton.tsx # Loading states
-├── lib/                     # Core logic
-│   ├── api.ts              # API service layer
-│   ├── constants.ts        # App constants
-│   ├── profileStorage.ts   # AsyncStorage wrapper
-│   └── __tests__/          # Unit tests
-└── hooks/                   # Custom React hooks
+app/
+  _layout.tsx            # Root layout — StripeProvider, tab nav, splash screen
+  index.tsx              # Home screen
+  equipment-scanner.tsx  # Camera + AI scan screen
+  exercises.tsx          # Exercise library
+  profile.tsx            # User profile setup
+  paywall.tsx            # Stripe subscription modal
 
-fitscan-backend/
-├── index.js                 # Express server
-├── config.js               # Configuration management
-├── middleware/             # Express middleware
-│   ├── auth.js            # Authentication
-│   └── validation.js      # Input validation
-└── __tests__/             # API tests
+lib/
+  api.ts                 # All API calls — update RAILWAY_BACKEND_URL after deploy
+  constants.ts           # Colors, equipment types, API config
+  scanLimit.ts           # Monthly scan tracking + pro status
+  workoutHistory.ts      # Workout history + streak calculation
+  profileStorage.ts      # AsyncStorage wrapper for user profile
+
+components/
+  ErrorBoundary.tsx
+  OfflineNotice.tsx
+  LoadingSkeleton.tsx
 ```
-
-## Environment Variables
-
-### Frontend (.env)
-```env
-EXPO_PUBLIC_BACKEND_URL=http://YOUR_LOCAL_IP:3001
-```
-
-### Backend (.env)
-```env
-# Required
-OPENAI_API_KEY=your_openai_api_key
-
-# Optional
-PORT=3001
-CORS_ORIGIN=http://localhost:8081
-AUTH_ENABLED=false
-API_SECRET_KEY=your_secret_key
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-```
-
-## Available Scripts
-
-### Frontend
-```bash
-npm start          # Start Expo dev server
-npm run android    # Open on Android
-npm run ios        # Open on iOS
-npm run web        # Open on web
-npm test           # Run tests
-```
-
-### Backend
-```bash
-npm start          # Start production server
-npm run dev        # Start development server
-npm test           # Run tests
-npm run test:watch # Run tests in watch mode
-npm run test:coverage # Generate coverage report
-```
-
-## API Documentation
-
-### Health Check
-```
-GET /health
-```
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "openaiConfigured": true,
-  "authEnabled": false
-}
-```
-
-### Recognize Equipment
-```
-POST /equipment/recognize
-Content-Type: application/json
-```
-
-**Request:**
-```json
-{
-  "image_base64": "base64_encoded_image",
-  "profile": {
-    "name": "John Doe",
-    "experienceLevel": "Intermediate",
-    "primaryGoal": "Build Muscle",
-    "daysPerWeek": 4,
-    "equipmentAccess": ["dumbbell", "barbell"]
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "equipment_type": "Dumbbell",
-  "confidence": "high",
-  "exercises": [
-    {
-      "name": "Dumbbell Bicep Curls",
-      "sets": "3-4",
-      "reps": "10-12",
-      "intensity": "Beginner",
-      "muscleGroups": ["Biceps", "Forearms"],
-      "description": "Curl the dumbbell toward your shoulders..."
-    }
-  ],
-  "ai_used": true,
-  "from": "openai"
-}
-```
-
-## Testing
-
-```bash
-# Frontend tests
-cd fitscan
-npm test
-
-# Backend tests
-cd fitscan-backend
-npm test
-
-# With coverage
-npm run test:coverage
-```
-
-## Security Notes
-
-⚠️ **Important Security Measures Implemented:**
-
-1. ✅ API key stored in `.env` (never commit)
-2. ✅ `.gitignore` properly excludes `.env` files
-3. ✅ Rate limiting (100 requests per 15 minutes)
-4. ✅ Input validation with Zod
-5. ✅ Helmet security headers
-6. ✅ CORS configuration
-7. ✅ Optional API authentication
-
-## Deployment
-
-### Backend Deployment (Railway/Render)
-
-1. Create account on [Railway](https://railway.app) or [Render](https://render.com)
-2. Connect your GitHub repository
-3. Set environment variables in dashboard
-4. Deploy!
-
-### Frontend Deployment (App Stores)
-
-```bash
-# Build for production
-eas build --platform ios
-eas build --platform android
-
-# Submit to stores
-eas submit --platform ios
-eas submit --platform android
-```
-
-See [Expo Application Services](https://expo.dev/eas) for details.
-
-## Troubleshooting
-
-### Backend won't start
-- Check that port 3001 is not in use
-- Verify `OPENAI_API_KEY` is set in `.env`
-- Run `npm install` to ensure dependencies are installed
-
-### Frontend can't connect to backend
-- Verify backend is running on port 3001
-- Check `EXPO_PUBLIC_BACKEND_URL` matches your local IP
-- Ensure phone/emulator is on same network as computer
-- Try `ipconfig getifaddr en0` (Mac) or `ipconfig` (Windows) to find your IP
-
-### Camera not working
-- Grant camera permissions when prompted
-- On iOS simulator, camera won't work (use physical device)
-- On Android emulator, enable virtual camera in settings
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-ISC
-
-## Support
-
-For issues and questions:
-- Create an issue on GitHub
-- Email: [your-email]
 
 ---
 
-Built with ❤️ using Expo and OpenAI
+## Deployment
+
+The backend deploys to [Railway](https://railway.app). After your first deploy:
+
+1. Copy your Railway URL (e.g. `fitscan-backend-production.up.railway.app`)
+2. Paste it into `lib/api.ts` line 10:
+   ```ts
+   const RAILWAY_BACKEND_URL = 'https://fitscan-backend-production.up.railway.app';
+   ```
+3. Commit and push
+
+In production builds `__DEV__` is `false`, so the app automatically hits Railway instead of localhost.
+
+---
+
+## Subscription Plans
+
+| Plan | Price | Scans |
+|---|---|---|
+| Free | $0 | 10 / month |
+| Basic | $4.99 / month | 30 / month |
+| Pro | $9.99 / month | Unlimited |
+| Annual | $79.99 / year | Unlimited |
+
+7-day free trial on monthly plans.
+
+---
+
+## License
+
+MIT
