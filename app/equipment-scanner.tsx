@@ -500,9 +500,9 @@ export default function EquipmentScannerScreen() {
     if (view !== "full-workout" || !workoutPlan) return null;
 
     return (
-      <Modal visible animationType="slide" transparent onRequestClose={handleReset}>
-        <View style={styles.sheetOverlay}>
-          <View style={[styles.sheet, { paddingBottom: 32 }]}>
+      <Modal visible animationType="slide" transparent={false} onRequestClose={handleReset}>
+        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+          <View style={[styles.sheet, { flex: 1, maxHeight: "100%", borderRadius: 0, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.sheetHandle} />
 
             <View style={styles.sheetHeaderRow}>
@@ -557,6 +557,8 @@ export default function EquipmentScannerScreen() {
       </Modal>
     );
   };
+
+
 
   // -------------------------------------------------------------------------
   // Main camera view
