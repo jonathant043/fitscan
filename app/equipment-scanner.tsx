@@ -536,7 +536,7 @@ export default function EquipmentScannerScreen() {
             ) : null}
 
             <Text style={styles.sectionTitle}>Exercises</Text>
-            <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
               {workoutPlan.exercises.map((ex, idx) => (
                 <View key={idx}>
                   <View style={styles.exerciseNumber}>
@@ -545,13 +545,30 @@ export default function EquipmentScannerScreen() {
                   <ExerciseCard ex={ex} />
                 </View>
               ))}
-              <View style={{ height: 24 }} />
+              <View style={{ height: 16 }} />
             </ScrollView>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleReset}>
-              <Ionicons name="scan-outline" size={18} color="#000" />
-              <Text style={styles.primaryButtonText}>Scan New Equipment</Text>
-            </TouchableOpacity>
+            {/* Bottom action buttons */}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { flex: 1 }]}
+                onPress={handleReset}
+              >
+                <Ionicons name="scan-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.secondaryButtonText}>Scan More</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { flex: 1, marginTop: 0 }]}
+                onPress={() => {
+                  handleReset();
+                  router.push("/");
+                }}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
+                <Text style={styles.primaryButtonText}>Finished Workout</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
