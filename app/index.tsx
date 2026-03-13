@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { loadProfile, UserProfile } from "../lib/profileStorage";
-import { loadStats, loadHistory, WorkoutStats, HistoryEntry } from "../lib/workoutHistory";
+import { loadStats, loadHistory, getSmartNudge, WorkoutStats, HistoryEntry } from "../lib/workoutHistory";
 import { COLORS } from "../lib/constants";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,7 @@ export default function HomeScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [recentHistory, setRecentHistory] = useState<HistoryEntry[]>([]);
+  const [nudge, setNudge] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
 
   useFocusEffect(
@@ -75,6 +76,7 @@ export default function HomeScreen() {
         setProfile(p);
         setStats(s);
         setRecentHistory([...h].reverse().slice(0, 3));
+        setNudge(getSmartNudge(h));
         setProfileLoaded(true);
       })();
       return () => { active = false; };
@@ -139,6 +141,14 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* ── Smart Nudge ── */}
+        {nudge && (
+          <View style={styles.nudgeCard}>
+            <Ionicons name="flash-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.nudgeText}>{nudge}</Text>
+          </View>
+        )}
+
         {/* ── Primary CTA — START SCANNING ── */}
         <TouchableOpacity
           onPress={() => router.push("/equipment-scanner")}
@@ -180,6 +190,9 @@ export default function HomeScreen() {
           <View style={{ marginTop: 8 }}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>RECENT WORKOUTS</Text>
+              <TouchableOpacity onPress={() => router.push("/history")}>
+                <Text style={styles.viewAll}>View All</Text>
+              </TouchableOpacity>
             </View>
 
             {recentHistory.map((entry) => {
@@ -367,4 +380,17 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   setsBadgeText: { fontSize: 12, fontWeight: "600", color: "#94a3b8" },
+
+  nudgeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#0f2a3f",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#1e4a6e",
+  },
+  nudgeText: { flex: 1, fontSize: 13, color: "#93c5fd", fontWeight: "600" },
 });

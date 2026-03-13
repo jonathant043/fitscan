@@ -9,6 +9,14 @@ import type { WorkoutPlan } from './api';
 // Types
 // ---------------------------------------------------------------------------
 
+export interface SavedExercise {
+  name: string;
+  sets: string;
+  reps: string;
+  muscleGroups: string[];
+  description?: string;
+}
+
 export interface HistoryEntry {
   id: string;
   date: string;          // ISO date string e.g. "2026-03-03"
@@ -17,8 +25,13 @@ export interface HistoryEntry {
   equipment_used: string[];
   exercise_count: number;
   estimated_duration_minutes: number;
+  muscle_groups: string[];  // canonical muscle groups trained in this workout
+  exercises?: SavedExercise[];
   ai_used: boolean;
 }
+
+// Canonical muscle groups tracked for the heatmap
+export const CANONICAL_MUSCLES = ['Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Core', 'Legs', 'Glutes'] as const;
 
 export interface WorkoutStats {
   totalWorkouts: number;
@@ -46,6 +59,30 @@ function daysAgoISO(n: number): string {
 
 function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeMuscleGroup(mg: string): string | null {
+  const s = mg.toLowerCase().trim();
+  if (s.includes('chest') || s.includes('pec')) return 'Chest';
+  if (s.includes('back') || s.includes('lat') || s.includes('rhomboid') || s.includes('trap') || s.includes('rear delt')) return 'Back';
+  if (s.includes('shoulder') || s.includes('delt') || s.includes('rotator')) return 'Shoulders';
+  if (s.includes('bicep')) return 'Biceps';
+  if (s.includes('tricep')) return 'Triceps';
+  if (s.includes('core') || s.includes('abs') || s.includes('abdominal') || s.includes('oblique')) return 'Core';
+  if (s.includes('quad') || s.includes('hamstring') || s.includes('leg') || s.includes('calf') || s.includes('calve') || s.includes('lunge') || s.includes('squat')) return 'Legs';
+  if (s.includes('glute') || s.includes('hip') || s.includes('butt')) return 'Glutes';
+  return null;
+}
+
+function extractMuscleGroups(plan: import('./api').WorkoutPlan): string[] {
+  const muscles = new Set<string>();
+  for (const exercise of plan.exercises ?? []) {
+    for (const mg of (exercise as { muscleGroups?: string[] }).muscleGroups ?? []) {
+      const normalized = normalizeMuscleGroup(mg);
+      if (normalized) muscles.add(normalized);
+    }
+  }
+  return [...muscles];
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +120,14 @@ export async function saveWorkoutToHistory(plan: WorkoutPlan): Promise<void> {
     equipment_used: plan.equipment_used ?? [],
     exercise_count: plan.exercises?.length ?? 0,
     estimated_duration_minutes: plan.estimated_duration_minutes ?? 0,
+    muscle_groups: extractMuscleGroups(plan),
+    exercises: (plan.exercises ?? []).map((ex) => ({
+      name: ex.name,
+      sets: ex.sets,
+      reps: ex.reps,
+      muscleGroups: ex.muscleGroups ?? [],
+      description: ex.description,
+    })),
     ai_used: plan.ai_used ?? false,
   };
   await saveHistory([...history, entry]);
@@ -165,4 +210,58 @@ export function computeStats(history: HistoryEntry[]): WorkoutStats {
 export async function loadStats(): Promise<WorkoutStats> {
   const history = await loadHistory();
   return computeStats(history);
+}
+
+// ---------------------------------------------------------------------------
+// Muscle group activity
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns days since each canonical muscle group was last trained.
+ * null = never trained.
+ */
+export function getMuscleGroupActivity(history: HistoryEntry[]): Record<string, number | null> {
+  const todayMs = new Date(todayISO()).getTime();
+  const result: Record<string, number | null> = {};
+
+  for (const muscle of CANONICAL_MUSCLES) {
+    result[muscle] = null;
+    for (let i = history.length - 1; i >= 0; i--) {
+      const entry = history[i];
+      if ((entry.muscle_groups ?? []).includes(muscle)) {
+        const entryMs = new Date(entry.date).getTime();
+        result[muscle] = Math.round((todayMs - entryMs) / 86_400_000);
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Returns a smart nudge string if a major muscle group hasn't been trained
+ * in 5+ days, or null if everything looks well-balanced.
+ */
+export function getSmartNudge(history: HistoryEntry[]): string | null {
+  if (history.length === 0) return null;
+
+  const activity = getMuscleGroupActivity(history);
+  const neglected: { muscle: string; days: number | null }[] = [];
+
+  for (const [muscle, days] of Object.entries(activity)) {
+    if (days === null || days >= 5) neglected.push({ muscle, days });
+  }
+
+  if (neglected.length === 0) return null;
+
+  neglected.sort((a, b) => {
+    if (a.days === null && b.days !== null) return -1;
+    if (a.days !== null && b.days === null) return 1;
+    return (b.days ?? 999) - (a.days ?? 999);
+  });
+
+  const { muscle, days } = neglected[0];
+  if (days === null) return `You haven't trained ${muscle} yet — try it on your next scan!`;
+  return `You haven't trained ${muscle} in ${days} days — time to hit it!`;
 }
