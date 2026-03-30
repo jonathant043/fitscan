@@ -5,6 +5,7 @@ import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as SplashScreen from "expo-splash-screen";
 import { StripeProvider } from "@stripe/stripe-react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { OfflineNotice } from "../components/OfflineNotice";
 import { COLORS } from "../lib/constants";
@@ -211,6 +212,7 @@ export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
 
   return (
+    <SafeAreaProvider>
     <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="fitscan">
     <ErrorBoundary>
       <View style={{ flex: 1 }}>
@@ -281,7 +283,6 @@ export default function RootLayout() {
           {/* Hidden routes */}
           <Tabs.Screen name="home" options={{ href: null }} />
           <Tabs.Screen name="+not-found" options={{ href: null }} />
-          <Tabs.Screen name="app/welcome" options={{ href: null }} />
           <Tabs.Screen name="paywall" options={{ href: null }} />
         </Tabs>
 
@@ -292,5 +293,6 @@ export default function RootLayout() {
       </View>
     </ErrorBoundary>
     </StripeProvider>
+    </SafeAreaProvider>
   );
 }
