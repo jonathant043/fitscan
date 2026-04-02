@@ -5,53 +5,67 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-
     "icon": "./assets/icon.png",
     "entryPoint": "./node_modules/expo-router/entry",
-
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#060d1a"
     },
-
     "assetBundlePatterns": [
       "**/*"
     ],
-
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.fitscan.app",
       "buildNumber": "1.0.0"
     },
-
     "android": {
       "package": "com.fitscan.app",
-      "versionCode": 1,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#020817"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
-
     "web": {
       "bundler": "metro",
       "favicon": "./assets/icon.png"
     },
-
     "plugins": [
       "expo-router",
       "expo-camera",
-      ["@stripe/stripe-react-native", { "merchantIdentifier": "merchant.com.fitscan.app" }]
+      "./plugins/withComposeCompiler",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.fitscan.app"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.0.21",
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ]
     ],
-
     "extra": {
       "router": {
         "origin": false
       },
       "eas": {
-        "projectId": "YOUR-EAS-PROJECT-ID"
+        "projectId": "b2c253a7-6043-4e2b-86e9-e127a81ac7ec"
       }
-    }
+    },
+    "owner": "jonathant043"
   }
 }
