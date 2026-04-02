@@ -19,7 +19,11 @@
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://web-production-a5aa3.up.railway.app",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51T9vcaRtR9iXPtP7Y3nyBYRd5JruJUx5Q6H1JrCV8Huu7VQOt3jcu138rSMRlsyCH42GMgr9fH2iQCboqMP8ul8U00jm5ib3RB"
+      }
     }
   },
   "submit": {
