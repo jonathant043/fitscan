@@ -30,6 +30,7 @@ import {
 import { COLORS, IMAGE_CONFIG, SCAN_LIMIT } from "../lib/constants";
 import { saveWorkoutToHistory } from "../lib/workoutHistory";
 import { consumeScan, getSubscriptionStatus } from "../lib/scanLimit";
+import { loadProfile, type UserProfile } from "../lib/profileStorage";
 import Paywall from "./paywall";
 
 // ---------------------------------------------------------------------------
@@ -126,7 +127,7 @@ const LOADING_STEPS = [
   "Building exercises…",
 ];
 
-const SLOW_CONNECTION_THRESHOLD_MS = 8_000;
+const SLOW_CONNECTION_THRESHOLD_MS = 5_000;
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -161,6 +162,13 @@ export default function EquipmentScannerScreen() {
   const [paywallScansUsed, setPaywallScansUsed] = useState<number>(SCAN_LIMIT.free);
   const [paywallDaysUntilReset, setPaywallDaysUntilReset] = useState<number>(0);
 
+  // User profile (for AI tailoring)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    loadProfile().then((p) => { if (p) setUserProfile(p); }).catch(() => {});
+  }, []);
+
   // Animated values
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
@@ -179,7 +187,7 @@ export default function EquipmentScannerScreen() {
       // Cycle through loading messages
       stepTimer.current = setInterval(() => {
         setLoadingStep((prev) => (prev + 1) % LOADING_STEPS.length);
-      }, 1_200);
+      }, 900);
 
       // Slow-connection hint after threshold
       slowHintTimer.current = setTimeout(() => {
@@ -305,7 +313,7 @@ export default function EquipmentScannerScreen() {
       setCurrentPhotoUri(photo.uri ?? null);
 
       const result = await withRetry(() =>
-        recognizeEquipment({ image_base64: photo.base64 })
+        recognizeEquipment({ image_base64: photo.base64, profile: userProfile ?? undefined })
       );
 
       setCurrentResult(result);
@@ -365,7 +373,7 @@ export default function EquipmentScannerScreen() {
 
     try {
       setIsGenerating(true);
-      const plan = await generateWorkout({ equipment_types });
+      const plan = await generateWorkout({ equipment_types, profile: userProfile ?? undefined });
       setWorkoutPlan(plan);
       // Persist to history (fire-and-forget)
       saveWorkoutToHistory(plan).catch(() => {});
@@ -407,7 +415,7 @@ export default function EquipmentScannerScreen() {
     return (
       <Modal visible animationType="slide" transparent onRequestClose={() => setView("camera")}>
         <View style={styles.sheetOverlay}>
-          <View style={styles.sheet}>
+          <View style={[styles.sheet, { flexDirection: "column" }]}>
             <View style={styles.sheetHandle} />
 
             {/* Equipment header */}
@@ -482,7 +490,7 @@ export default function EquipmentScannerScreen() {
                         <Text style={styles.primaryButtonText}>
                           {scannedItems.length > 0
                             ? `Build Workout (${scannedItems.length + 1})`
-                            : "Use This Workout"}
+                            : "Build Workout"}
                         </Text>
                       </>
                     )}
@@ -678,6 +686,17 @@ export default function EquipmentScannerScreen() {
         </Text>
       </View>
 
+      {/* Generating overlay — shown when building workout from queue bar */}
+      {isGenerating && view === "camera" && (
+        <View style={styles.generatingOverlay}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.generatingTitle}>Building your workout…</Text>
+          <Text style={styles.generatingSubtitle}>
+            AI is crafting {scannedItems.length} equipment workout
+          </Text>
+        </View>
+      )}
+
       {/* Modals */}
       {renderSingleResultSheet()}
       {renderFullWorkoutSheet()}
@@ -860,7 +879,7 @@ const styles = StyleSheet.create({
   sheetCloseBtn: { padding: 4, marginLeft: 8 },
   noteText: { fontSize: 13, color: "#fbbf24", marginVertical: 6 },
   sectionTitle: { fontSize: 15, fontWeight: "600", color: "#9ca3af", marginTop: 12, marginBottom: 6 },
-  scrollArea: { flexGrow: 0, maxHeight: 380 },
+  scrollArea: { flex: 1 },
 
   // Exercise card
   exerciseCard: {
@@ -916,6 +935,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   secondaryButtonText: { color: COLORS.primary, fontSize: 14, fontWeight: "600" },
+
+  // Generating overlay
+  generatingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(2,8,23,0.88)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    zIndex: 50,
+  },
+  generatingTitle: { fontSize: 20, fontWeight: "700", color: "#ffffff" },
+  generatingSubtitle: { fontSize: 14, color: "#64748b" },
 
   // Unknown equipment state
   unknownBox: {
