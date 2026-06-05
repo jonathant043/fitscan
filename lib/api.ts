@@ -243,6 +243,36 @@ export async function generateWorkout(
 }
 
 /**
+ * Capture a user's email for cross-device sync and lead list
+ */
+export async function captureEmail(email: string): Promise<void> {
+  try {
+    await fetchWithTimeout(`${BACKEND_URL}/users/capture-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, source: 'app_post_workout' }),
+    }, 10_000);
+  } catch {
+    // Fire-and-forget — never block UX for this
+  }
+}
+
+/**
+ * Track an analytics event (fire-and-forget)
+ */
+export async function trackEvent(event: string, deviceId?: string, metadata?: Record<string, unknown>): Promise<void> {
+  try {
+    await fetchWithTimeout(`${BACKEND_URL}/events/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, deviceId, metadata }),
+    }, 5_000);
+  } catch {
+    // Never block UX for analytics
+  }
+}
+
+/**
  * Retry wrapper for API calls
  */
 export async function withRetry<T>(

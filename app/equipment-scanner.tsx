@@ -32,6 +32,7 @@ import { saveWorkoutToHistory } from "../lib/workoutHistory";
 import { consumeScan, getSubscriptionStatus } from "../lib/scanLimit";
 import { loadProfile, type UserProfile } from "../lib/profileStorage";
 import Paywall from "./paywall";
+import EmailCaptureModal, { shouldShowEmailCapture } from "../components/EmailCaptureModal";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -165,6 +166,9 @@ export default function EquipmentScannerScreen() {
   // User profile (for AI tailoring)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
+  // Email capture
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
+
   useEffect(() => {
     loadProfile().then((p) => { if (p) setUserProfile(p); }).catch(() => {});
   }, []);
@@ -174,6 +178,13 @@ export default function EquipmentScannerScreen() {
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
   const slowHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Unmount guard — prevents setState calls after component is gone
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   // -------------------------------------------------------------------------
   // Animation effect — start / stop when isAnalyzing changes
@@ -302,6 +313,9 @@ export default function EquipmentScannerScreen() {
     try {
       setIsAnalyzing(true);
 
+      // Re-check camera ref after the async scan-limit checks above
+      if (!cameraRef.current) throw new Error("Camera not ready. Please try again.");
+
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
         quality: IMAGE_CONFIG.quality,
@@ -310,27 +324,31 @@ export default function EquipmentScannerScreen() {
 
       if (!photo?.base64) throw new Error("Could not read image data from camera.");
 
-      setCurrentPhotoUri(photo.uri ?? null);
+      if (isMounted.current) setCurrentPhotoUri(photo.uri ?? null);
 
       const result = await withRetry(() =>
-        recognizeEquipment({ image_base64: photo.base64, profile: userProfile ?? undefined })
+        recognizeEquipment({ image_base64: photo.base64!, profile: userProfile ?? undefined })
       );
 
+      if (!isMounted.current) return;
       setCurrentResult(result);
       setView("single-result");
     } catch (err) {
-      let msg = "Network error. Check your internet connection and ensure the backend is running.";
+      if (!isMounted.current) return;
+      let msg = "Network error. Check your internet connection and try again.";
       if (err instanceof ApiError) {
         msg =
           err.statusCode === 408
             ? "Request timed out. Please try again."
             : err.statusCode === 0
-            ? "Cannot connect to backend. Please ensure it's running."
+            ? "Cannot connect. Please check your connection."
             : err.message;
+      } else if (err instanceof Error) {
+        msg = err.message;
       }
       Alert.alert("Scan failed", msg);
     } finally {
-      setIsAnalyzing(false);
+      if (isMounted.current) setIsAnalyzing(false);
     }
   };
 
@@ -374,16 +392,20 @@ export default function EquipmentScannerScreen() {
     try {
       setIsGenerating(true);
       const plan = await generateWorkout({ equipment_types, profile: userProfile ?? undefined });
+      if (!isMounted.current) return;
       setWorkoutPlan(plan);
-      // Persist to history (fire-and-forget)
       saveWorkoutToHistory(plan).catch(() => {});
       setView("full-workout");
+      shouldShowEmailCapture().then((show) => {
+        if (show && isMounted.current) setShowEmailCapture(true);
+      }).catch(() => {});
     } catch (err) {
+      if (!isMounted.current) return;
       let msg = "Could not generate workout. Please try again.";
       if (err instanceof ApiError) msg = err.message;
       Alert.alert("Workout generation failed", msg);
     } finally {
-      setIsGenerating(false);
+      if (isMounted.current) setIsGenerating(false);
     }
   };
 
@@ -711,6 +733,10 @@ export default function EquipmentScannerScreen() {
           // Trigger scan immediately after upgrade
           handleCaptureAndAnalyze();
         }}
+      />
+      <EmailCaptureModal
+        visible={showEmailCapture}
+        onDismiss={() => setShowEmailCapture(false)}
       />
     </View>
   );

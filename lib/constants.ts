@@ -116,9 +116,9 @@ export const API_CONFIG = {
  * Image compression settings
  */
 export const IMAGE_CONFIG = {
-  quality: 0.6,
-  maxWidth: 1024,
-  maxHeight: 1024,
+  quality: 0.4,   // Lower quality = smaller base64 payload = faster AI response
+  maxWidth: 768,  // GPT-4o-mini doesn't need high res for equipment recognition
+  maxHeight: 768,
   format: 'jpeg',
 } as const;
 
