@@ -7,7 +7,7 @@ import { API_CONFIG } from './constants';
  * Production backend URL — update this after your first Railway deploy.
  * Railway gives you a permanent URL like: https://fitscan-backend-production.up.railway.app
  */
-const RAILWAY_BACKEND_URL = 'https://YOUR-APP.up.railway.app';
+const RAILWAY_BACKEND_URL = 'https://web-production-a5aa3.up.railway.app';
 
 /**
  * Get the backend URL.
@@ -254,6 +254,26 @@ export async function captureEmail(email: string): Promise<void> {
     }, 10_000);
   } catch {
     // Fire-and-forget — never block UX for this
+  }
+}
+
+/**
+ * Fetch an exercise demo GIF URL by name.
+ * Returns null if not found or if the backend has no API key configured.
+ * Never throws — designed to be called without breaking any UI flow.
+ */
+export async function getExerciseGif(name: string): Promise<string | null> {
+  try {
+    const response = await fetchWithTimeout(
+      `${BACKEND_URL}/exercises/gif?name=${encodeURIComponent(name)}`,
+      { method: 'GET' },
+      8_000
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    return (data.gifUrl as string) || null;
+  } catch {
+    return null;
   }
 }
 

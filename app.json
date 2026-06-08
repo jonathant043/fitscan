@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.fitscan.app",
-      "buildNumber": "1.0.0"
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.fitscan.app",
@@ -28,8 +28,7 @@
         "backgroundColor": "#020817"
       },
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {

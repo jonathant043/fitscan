@@ -341,11 +341,6 @@ function PlanSelectionScreen({
             ? `Billed as ${selectedPlan.price}/year. Cancel anytime.`
             : `Free for 7 days, then ${selectedPlan.price}/month. Cancel anytime before Day 7 and you won't be charged.`}
         </Text>
-        {selected !== "annual" && (
-          <Text style={styles.reminderText}>
-            🔔 We'll remind you before your trial ends.
-          </Text>
-        )}
       </ScrollView>
     </SafeAreaView>
   );

@@ -10,7 +10,9 @@ import {
   ScrollView,
   Alert,
   Animated,
+  Image,
 } from "react-native";
+import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +21,7 @@ import { useRouter } from "expo-router";
 import {
   recognizeEquipment,
   generateWorkout,
+  getExerciseGif,
   withRetry,
   ApiError,
   type RecognitionResponse,
@@ -51,51 +54,124 @@ function confidenceColor(c: string) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function ExerciseCard({ ex }: { ex: Exercise | WorkoutExercise }) {
+function ExerciseCard({
+  ex,
+  enableGif = false,
+}: {
+  ex: Exercise | WorkoutExercise;
+  enableGif?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [gifUrl, setGifUrl] = useState<string | null | "loading">(null);
+
+  const handleToggle = async () => {
+    const next = !expanded;
+    setExpanded(next);
+    // Fetch GIF on first expand, only once
+    if (next && enableGif && gifUrl === null) {
+      setGifUrl("loading");
+      const url = await getExerciseGif(ex.name);
+      setGifUrl(url); // null means "not found" — won't retry
+    }
+  };
+
+  const intensityColor =
+    ex.intensity === "Beginner"
+      ? COLORS.success
+      : ex.intensity === "Advanced"
+      ? COLORS.error
+      : COLORS.warning;
+
   return (
-    <View style={styles.exerciseCard}>
+    <TouchableOpacity
+      onPress={handleToggle}
+      activeOpacity={0.75}
+      style={styles.exerciseCard}
+    >
+      {/* Header row — always visible */}
       <View style={styles.exerciseCardHeader}>
         <Text style={styles.exerciseName}>{ex.name}</Text>
-        {ex.intensity ? (
-          <Text
-            style={[
-              styles.exerciseTag,
-              {
-                color:
-                  ex.intensity === "Beginner"
-                    ? COLORS.success
-                    : ex.intensity === "Advanced"
-                    ? COLORS.error
-                    : COLORS.warning,
-              },
-            ]}
-          >
-            {ex.intensity}
-          </Text>
-        ) : null}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {ex.intensity ? (
+            <Text style={[styles.exerciseTag, { color: intensityColor }]}>
+              {ex.intensity}
+            </Text>
+          ) : null}
+          <Ionicons
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={14}
+            color="#4b5563"
+          />
+        </View>
       </View>
+
       {"equipment" in ex && ex.equipment ? (
         <Text style={styles.exerciseEquipmentLabel}>{ex.equipment}</Text>
       ) : null}
-      {ex.description ? (
-        <Text style={styles.exerciseDescription}>{ex.description}</Text>
-      ) : null}
-      <View style={styles.exerciseMetaRow}>
-        {ex.muscleGroups?.length > 0 && (
-          <Text style={styles.exerciseMeta}>{ex.muscleGroups.join(" · ")}</Text>
-        )}
-        {(ex.sets || ex.reps) && (
-          <Text style={styles.exerciseMeta}>
-            {ex.sets ? `${ex.sets} sets` : ""}
-            {ex.sets && ex.reps ? " × " : ""}
-            {ex.reps ? `${ex.reps} reps` : ""}
-          </Text>
-        )}
-        {"rest_seconds" in ex && ex.rest_seconds ? (
-          <Text style={styles.exerciseMeta}>{ex.rest_seconds}s rest</Text>
-        ) : null}
-      </View>
-    </View>
+
+      {/* Always-visible summary line */}
+      {!expanded && (
+        <View style={styles.exerciseMetaRow}>
+          {ex.muscleGroups?.length > 0 && (
+            <Text style={styles.exerciseMeta}>
+              {ex.muscleGroups.join(" · ")}
+            </Text>
+          )}
+          {(ex.sets || ex.reps) && (
+            <Text style={styles.exerciseMeta}>
+              {ex.sets ? `${ex.sets} sets` : ""}
+              {ex.sets && ex.reps ? " × " : ""}
+              {ex.reps ? `${ex.reps} reps` : ""}
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Expanded detail */}
+      {expanded && (
+        <>
+          {/* GIF demo */}
+          {enableGif && gifUrl === "loading" && (
+            <ActivityIndicator
+              color={COLORS.primary}
+              size="small"
+              style={{ marginVertical: 14 }}
+            />
+          )}
+          {enableGif && gifUrl && gifUrl !== "loading" && (
+            <View style={styles.gifContainer}>
+              <WebView
+                source={{ html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh"><img src="${gifUrl}" style="max-width:100%;max-height:200px;object-fit:contain"></body></html>` }}
+                style={styles.gifImage}
+                scrollEnabled={false}
+              />
+            </View>
+          )}
+
+          {ex.description ? (
+            <Text style={styles.exerciseDescription}>{ex.description}</Text>
+          ) : null}
+
+          <View style={styles.exerciseMetaRow}>
+            {ex.muscleGroups?.length > 0 && (
+              <Text style={styles.exerciseMeta}>
+                {ex.muscleGroups.join(" · ")}
+              </Text>
+            )}
+            {(ex.sets || ex.reps) && (
+              <Text style={styles.exerciseMeta}>
+                {ex.sets ? `${ex.sets} sets` : ""}
+                {ex.sets && ex.reps ? " × " : ""}
+                {ex.reps ? `${ex.reps} reps` : ""}
+              </Text>
+            )}
+            {"rest_seconds" in ex && ex.rest_seconds ? (
+              <Text style={styles.exerciseMeta}>{ex.rest_seconds}s rest</Text>
+            ) : null}
+          </View>
+        </>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -572,7 +648,7 @@ export default function EquipmentScannerScreen() {
                   <View style={styles.exerciseNumber}>
                     <Text style={styles.exerciseNumberText}>{idx + 1}</Text>
                   </View>
-                  <ExerciseCard ex={ex} />
+                  <ExerciseCard ex={ex} enableGif />
                 </View>
               ))}
               <View style={{ height: 16 }} />
@@ -912,6 +988,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#111827",
+  },
+  gifContainer: {
+    width: "100%",
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  gifImage: {
+    width: "100%",
+    height: 200,
   },
   exerciseCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   exerciseName: { fontSize: 15, fontWeight: "600", color: "#ffffff", flex: 1, marginRight: 8 },
