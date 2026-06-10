@@ -17,7 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useStripe } from "@stripe/stripe-react-native";
 import { COLORS, SCAN_LIMIT } from "../lib/constants";
-import { activatePro } from "../lib/scanLimit";
+import { activatePro, saveCustomerId } from "../lib/scanLimit";
 import { createSetupIntent, activateSubscription, type PlanId } from "../lib/api";
 
 // ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ const PLANS: Plan[] = [
     name: "Basic",
     price: "$4.99",
     period: "/ month",
-    features: ["30 AI scans per month", "Custom workout plans", "Workout history"],
+    features: ["15 AI scans per month", "Custom workout plans", "Workout history"],
   },
   {
     id: "pro",
@@ -198,7 +198,7 @@ function PlanSelectionScreen({
   onBack: () => void;
   onConfirm: (plan: Plan) => void;
 }) {
-  const [selected, setSelected] = useState<Plan["id"]>("pro");
+  const [selected, setSelected] = useState<Plan["id"]>("annual");
   const [loading, setLoading] = useState(false);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const selectedPlan = PLANS.find((p) => p.id === selected)!;
@@ -249,6 +249,7 @@ function PlanSelectionScreen({
 
       // 5. Mark pro locally and move to confirmed screen
       await activatePro();
+      await saveCustomerId(customerId);
       onConfirm(selectedPlan);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong.";

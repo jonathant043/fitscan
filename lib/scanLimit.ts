@@ -13,6 +13,7 @@ export interface ScanLimitData {
   periodStart: string; // "YYYY-MM" — resets each calendar month
   isPro: boolean;
   proActivatedAt: number | null;
+  customerId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +55,7 @@ function freshData(): ScanLimitData {
     periodStart: currentMonth(),
     isPro: false,
     proActivatedAt: null,
+    customerId: null,
   };
 }
 
@@ -106,6 +108,24 @@ export async function consumeScan(): Promise<{ allowed: boolean; scansUsed: numb
 export async function activatePro(): Promise<void> {
   const data = await loadData();
   await saveData({ ...data, isPro: true, proActivatedAt: Date.now() });
+}
+
+/** Store the Stripe customer ID after a successful purchase. */
+export async function saveCustomerId(customerId: string): Promise<void> {
+  const data = await loadData();
+  await saveData({ ...data, customerId });
+}
+
+/** Get the stored Stripe customer ID, or null if not set. */
+export async function getCustomerId(): Promise<string | null> {
+  const data = await loadData();
+  return data.customerId ?? null;
+}
+
+/** Deactivate Pro (called when Stripe webhook reports cancellation). */
+export async function deactivatePro(): Promise<void> {
+  const data = await loadData();
+  await saveData({ ...data, isPro: false });
 }
 
 /** Returns current subscription status for display. */

@@ -1,7 +1,18 @@
 // lib/api.ts
 // Centralized API service layer
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from './constants';
+
+async function getCustomerIdHeader(): Promise<Record<string, string>> {
+  try {
+    const raw = await AsyncStorage.getItem('fitscan:scanLimit');
+    if (!raw) return {};
+    const data = JSON.parse(raw);
+    if (data?.customerId) return { 'x-customer-id': data.customerId };
+  } catch {}
+  return {};
+}
 
 /**
  * Production backend URL — update this after your first Railway deploy.
@@ -172,9 +183,10 @@ export async function recognizeEquipment(
   request: RecognitionRequest
 ): Promise<RecognitionResponse> {
   try {
+    const customerHeader = await getCustomerIdHeader();
     const response = await fetchWithTimeout(`${BACKEND_URL}/equipment/recognize`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...customerHeader },
       body: JSON.stringify(request),
     });
 
@@ -208,11 +220,12 @@ export async function generateWorkout(
   request: WorkoutGenerateRequest
 ): Promise<WorkoutPlan> {
   try {
+    const customerHeader = await getCustomerIdHeader();
     const response = await fetchWithTimeout(
       `${BACKEND_URL}/workout/generate`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...customerHeader },
         body: JSON.stringify(request),
       },
       // Allow extra time for multi-exercise AI generation
