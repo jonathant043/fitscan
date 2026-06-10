@@ -35,9 +35,10 @@ export type PaywallProps = {
 type PaywallScreen = "limit" | "plans" | "confirmed";
 
 type Plan = {
-  id: "basic" | "pro" | "annual";
+  id: "pro" | "annual";
   name: string;
   price: string;
+  monthlyEquiv?: string;
   period: string;
   badge?: string;
   badgeColor?: string;
@@ -45,23 +46,16 @@ type Plan = {
 };
 
 // ---------------------------------------------------------------------------
-// Plan data
+// Plan data — 2 plans only (cleaner conversion, no choice paralysis)
 // ---------------------------------------------------------------------------
 
 const PLANS: Plan[] = [
-  {
-    id: "basic",
-    name: "Basic",
-    price: "$4.99",
-    period: "/ month",
-    features: ["15 AI scans per month", "Custom workout plans", "Workout history"],
-  },
   {
     id: "pro",
     name: "Pro",
     price: "$9.99",
     period: "/ month",
-    badge: "MOST POPULAR",
+    badge: "7-DAY FREE TRIAL",
     badgeColor: "#38bdf8",
     features: [
       "Unlimited AI scans",
@@ -72,10 +66,11 @@ const PLANS: Plan[] = [
   },
   {
     id: "annual",
-    name: "Annual",
+    name: "Annual Pro",
     price: "$79.99",
+    monthlyEquiv: "$6.67",
     period: "/ year",
-    badge: "SAVE 33%",
+    badge: "BEST VALUE · SAVE 33%",
     badgeColor: "#22c55e",
     features: [
       "Unlimited AI scans",
@@ -137,10 +132,10 @@ function ScanLimitScreen({
           <Text style={styles.fitscanLabelText}>FITSCAN</Text>
         </View>
 
-        <Text style={styles.limitTitle}>You've used all{"\n"}your free scans</Text>
+        <Text style={styles.limitTitle}>Keep the{"\n"}momentum going</Text>
         <Text style={styles.limitSubtitle}>
-          You've used {scansUsed} of {SCAN_LIMIT.free} free scans this month.{"\n"}
-          Upgrade to keep scanning and building workouts.
+          You've crushed all {SCAN_LIMIT.free} free scans this month.{"\n"}
+          Unlock unlimited scans and never slow down.
         </Text>
 
         {/* Progress bar */}
@@ -303,9 +298,14 @@ function PlanSelectionScreen({
                 </View>
                 <View style={styles.planCardRight}>
                   <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
-                    {plan.price}
+                    {plan.monthlyEquiv ?? plan.price}
                   </Text>
-                  <Text style={styles.planPeriod}>{plan.period}</Text>
+                  <Text style={styles.planPeriod}>
+                    {plan.monthlyEquiv ? "/ month" : plan.period}
+                  </Text>
+                  {plan.monthlyEquiv && (
+                    <Text style={styles.planBilledAs}>billed {plan.price}/yr</Text>
+                  )}
                 </View>
               </View>
             </TouchableOpacity>
@@ -330,8 +330,8 @@ function PlanSelectionScreen({
             ) : (
               <Text style={styles.ctaButtonText}>
                 {selected === "annual"
-                  ? `GET ANNUAL — ${selectedPlan.price}/yr`
-                  : `START 7-DAY FREE TRIAL`}
+                  ? `GET ANNUAL PRO — Just $6.67/mo`
+                  : `START FREE TRIAL — Then $9.99/mo`}
               </Text>
             )}
           </LinearGradient>
@@ -339,8 +339,8 @@ function PlanSelectionScreen({
 
         <Text style={styles.finePrint}>
           {selected === "annual"
-            ? `Billed as ${selectedPlan.price}/year. Cancel anytime.`
-            : `Free for 7 days, then ${selectedPlan.price}/month. Cancel anytime before Day 7 and you won't be charged.`}
+            ? `Billed as $79.99/year ($6.67/mo). Cancel anytime.`
+            : `Free 7-day trial — no charge until Day 7. Cancel anytime.`}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -366,37 +366,57 @@ function TrialConfirmedScreen({
         <Text style={styles.confirmedTitle}>You're all set!</Text>
         <Text style={styles.confirmedSubtitle}>
           {plan.id === "annual"
-            ? `Your annual plan is active. Enjoy unlimited scans.`
+            ? `Annual Pro is active. You're locked in\nat just $6.67/mo — enjoy unlimited scans.`
             : `Your 7-day free trial has started.\nNo charge until Day 7.`}
         </Text>
 
-        {/* Timeline */}
+        {/* Timeline — different for annual vs monthly trial */}
         <View style={styles.timeline}>
-          <View style={styles.timelineStep}>
-            <View style={[styles.timelineDot, styles.timelineDotActive]} />
-            <View style={styles.timelineStepText}>
-              <Text style={styles.timelineLabel}>Today</Text>
-              <Text style={styles.timelineDesc}>Trial starts · Full Pro access</Text>
-            </View>
-          </View>
-          <View style={styles.timelineLine} />
-          <View style={styles.timelineStep}>
-            <View style={styles.timelineDot} />
-            <View style={styles.timelineStepText}>
-              <Text style={styles.timelineLabel}>Day 7</Text>
-              <Text style={styles.timelineDesc}>
-                {plan.id === "annual" ? "Annual billing begins" : `${plan.price}/month begins`}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.timelineLine} />
-          <View style={styles.timelineStep}>
-            <View style={styles.timelineDot} />
-            <View style={styles.timelineStepText}>
-              <Text style={styles.timelineLabel}>Cancel anytime</Text>
-              <Text style={styles.timelineDesc}>No questions asked</Text>
-            </View>
-          </View>
+          {plan.id === "annual" ? (
+            <>
+              <View style={styles.timelineStep}>
+                <View style={[styles.timelineDot, styles.timelineDotActive]} />
+                <View style={styles.timelineStepText}>
+                  <Text style={styles.timelineLabel}>Today</Text>
+                  <Text style={styles.timelineDesc}>Annual Pro active · Unlimited scans</Text>
+                </View>
+              </View>
+              <View style={styles.timelineLine} />
+              <View style={styles.timelineStep}>
+                <View style={styles.timelineDot} />
+                <View style={styles.timelineStepText}>
+                  <Text style={styles.timelineLabel}>In 1 year</Text>
+                  <Text style={styles.timelineDesc}>Renews at $79.99 · Cancel anytime</Text>
+                </View>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.timelineStep}>
+                <View style={[styles.timelineDot, styles.timelineDotActive]} />
+                <View style={styles.timelineStepText}>
+                  <Text style={styles.timelineLabel}>Today</Text>
+                  <Text style={styles.timelineDesc}>Trial starts · Full Pro access</Text>
+                </View>
+              </View>
+              <View style={styles.timelineLine} />
+              <View style={styles.timelineStep}>
+                <View style={styles.timelineDot} />
+                <View style={styles.timelineStepText}>
+                  <Text style={styles.timelineLabel}>Day 7</Text>
+                  <Text style={styles.timelineDesc}>$9.99/month begins</Text>
+                </View>
+              </View>
+              <View style={styles.timelineLine} />
+              <View style={styles.timelineStep}>
+                <View style={styles.timelineDot} />
+                <View style={styles.timelineStepText}>
+                  <Text style={styles.timelineLabel}>Cancel anytime</Text>
+                  <Text style={styles.timelineDesc}>No questions asked</Text>
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         <TouchableOpacity onPress={onStartScanning} activeOpacity={0.88} style={styles.ctaWrapper}>
@@ -509,9 +529,9 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: "rgba(239,68,68,0.12)",
+    backgroundColor: "rgba(56,189,248,0.12)",
     borderWidth: 1.5,
-    borderColor: "rgba(239,68,68,0.3)",
+    borderColor: "rgba(56,189,248,0.3)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -523,11 +543,11 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: COLORS.error,
+    backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  limitBadgeText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  limitBadgeText: { color: "#020617", fontSize: 14, fontWeight: "800" },
 
   fitscanLabel: { alignSelf: "center", marginTop: 8, marginBottom: 16 },
   fitscanLabelText: {
@@ -564,7 +584,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: "100%",
     borderRadius: 4,
-    backgroundColor: COLORS.error,
+    backgroundColor: COLORS.primary,
   },
   progressLabels: { flexDirection: "row", justifyContent: "space-between" },
   progressLeft: { fontSize: 12, color: COLORS.textMuted },
@@ -677,6 +697,7 @@ const styles = StyleSheet.create({
   planPrice: { fontSize: 20, fontWeight: "800", color: COLORS.textSecondary },
   planPriceSelected: { color: COLORS.primary },
   planPeriod: { fontSize: 11, color: COLORS.textMuted },
+  planBilledAs: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
 
   reminderText: {
     fontSize: 12,
