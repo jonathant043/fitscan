@@ -130,6 +130,7 @@ function ScanLimitScreen({
 
         <View style={styles.fitscanLabel}>
           <Text style={styles.fitscanLabelText}>FITSCAN</Text>
+          <Text style={styles.fitscanSlogan}>FITNESS MADE SIMPLE</Text>
         </View>
 
         <Text style={styles.limitTitle}>Keep the{"\n"}momentum going</Text>
@@ -555,6 +556,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: COLORS.textMuted,
     letterSpacing: 3,
+    textAlign: "center",
+  },
+  fitscanSlogan: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: COLORS.primary,
+    letterSpacing: 2.5,
+    textAlign: "center",
+    marginTop: 2,
+    opacity: 0.8,
   },
 
   limitTitle: {

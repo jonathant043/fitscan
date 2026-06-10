@@ -99,11 +99,14 @@ export default function HomeScreen() {
             <Text style={styles.welcomeLabel}>WELCOME BACK</Text>
             <Text style={styles.nameText}>{displayName}</Text>
           </View>
-          <Image
-            source={require("../assets/logo.png")}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
+          <View style={styles.headerLogoWrapper}>
+            <Image
+              source={require("../assets/logo.png")}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.headerSlogan}>FITNESS MADE SIMPLE</Text>
+          </View>
         </View>
 
         {/* ── Stats Row (returning users) ── */}
@@ -247,10 +250,21 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   nameText: { fontSize: 30, fontWeight: "800", color: "#ffffff" },
+  headerLogoWrapper: {
+    alignItems: "center",
+  },
   headerLogo: {
     width: 44,
     height: 44,
     opacity: 0.9,
+  },
+  headerSlogan: {
+    fontSize: 7,
+    fontWeight: "600",
+    color: COLORS.primary,
+    letterSpacing: 2,
+    marginTop: 3,
+    opacity: 0.8,
   },
   avatarCircle: {
     width: 48,
