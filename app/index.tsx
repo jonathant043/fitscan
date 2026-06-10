@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -98,9 +99,11 @@ export default function HomeScreen() {
             <Text style={styles.welcomeLabel}>WELCOME BACK</Text>
             <Text style={styles.nameText}>{displayName}</Text>
           </View>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarEmoji}>💪</Text>
-          </View>
+          <Image
+            source={require("../assets/logo.png")}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
         </View>
 
         {/* ── Stats Row (returning users) ── */}
@@ -244,6 +247,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   nameText: { fontSize: 30, fontWeight: "800", color: "#ffffff" },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    opacity: 0.9,
+  },
   avatarCircle: {
     width: 48,
     height: 48,

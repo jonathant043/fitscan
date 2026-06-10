@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -150,8 +151,9 @@ export default function ProfileScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backText}>← Home</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Set up your profile</Text>
+        <Image source={require("../assets/logo.png")} style={styles.headerLogo} resizeMode="contain" />
       </View>
+      <Text style={styles.headerTitle}>Set up your profile</Text>
 
       <Text style={styles.headerSubtitle}>
         Tell us about your goals so we can tailor your workouts.
@@ -316,7 +318,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
+  },
+  headerLogo: {
+    width: 36,
+    height: 36,
+    opacity: 0.85,
   },
   backText: {
     color: "#60A5FA",
