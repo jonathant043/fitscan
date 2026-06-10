@@ -28,7 +28,9 @@
         "backgroundColor": "#020817"
       },
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
     "web": {
@@ -38,6 +40,14 @@
     "plugins": [
       "expo-router",
       "expo-camera",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563EB",
+          "androidMode": "default"
+        }
+      ],
       "./plugins/withComposeCompiler",
       [
         "@stripe/stripe-react-native",

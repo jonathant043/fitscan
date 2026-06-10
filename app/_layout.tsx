@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { OfflineNotice } from "../components/OfflineNotice";
 import { COLORS } from "../lib/constants";
+import { registerForPushNotifications } from "../lib/notifications";
 
 // Stripe publishable key — set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your .env
 const STRIPE_PUBLISHABLE_KEY =
@@ -210,6 +211,10 @@ const tabStyles = StyleSheet.create({
 // ---------------------------------------------------------------------------
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
+
+  useEffect(() => {
+    registerForPushNotifications().catch(() => {});
+  }, []);
 
   return (
     <SafeAreaProvider>

@@ -36,6 +36,7 @@ import { consumeScan, getSubscriptionStatus } from "../lib/scanLimit";
 import { loadProfile, type UserProfile } from "../lib/profileStorage";
 import Paywall from "./paywall";
 import EmailCaptureModal, { shouldShowEmailCapture } from "../components/EmailCaptureModal";
+import { schedulePostWorkoutNotifications } from "../lib/notifications";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -471,6 +472,7 @@ export default function EquipmentScannerScreen() {
       if (!isMounted.current) return;
       setWorkoutPlan(plan);
       saveWorkoutToHistory(plan).catch(() => {});
+      schedulePostWorkoutNotifications().catch(() => {});
       setView("full-workout");
       shouldShowEmailCapture().then((show) => {
         if (show && isMounted.current) setShowEmailCapture(true);
