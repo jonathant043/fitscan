@@ -169,6 +169,9 @@ export default function HistoryScreen() {
   );
 
   const stats = computeStats(history);
+  const totalTimeLabel = stats.totalMinutes >= 60
+    ? `${Math.floor(stats.totalMinutes / 60)}h ${stats.totalMinutes % 60}m`
+    : `${stats.totalMinutes}m`;
   const displayHistory = [...history].reverse();
   const workoutDates = new Set(history.map((e) => e.date));
   const grouped = groupByDate(displayHistory);
@@ -217,7 +220,7 @@ export default function HistoryScreen() {
             </View>
             <View style={styles.weekStatDivider} />
             <View style={styles.weekStat}>
-              <Text style={styles.weekStatValue}>{stats.totalMinutes}m</Text>
+              <Text style={styles.weekStatValue}>{totalTimeLabel}</Text>
               <Text style={styles.weekStatLabel}>total time</Text>
             </View>
           </View>
@@ -242,7 +245,7 @@ export default function HistoryScreen() {
         {/* Workout Log */}
         {history.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="fitness-outline" size={52} color="#1e293b" />
+            <Ionicons name="fitness-outline" size={52} color="#334155" />
             <Text style={styles.emptyTitle}>No workouts yet</Text>
             <Text style={styles.emptySubtitle}>Complete a scan to log your first workout</Text>
           </View>

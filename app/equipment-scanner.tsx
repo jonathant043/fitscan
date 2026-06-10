@@ -37,6 +37,7 @@ import { loadProfile, type UserProfile } from "../lib/profileStorage";
 import Paywall from "./paywall";
 import EmailCaptureModal, { shouldShowEmailCapture } from "../components/EmailCaptureModal";
 import { schedulePostWorkoutNotifications } from "../lib/notifications";
+import * as StoreReview from "expo-store-review";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -471,7 +472,17 @@ export default function EquipmentScannerScreen() {
       const plan = await generateWorkout({ equipment_types, profile: userProfile ?? undefined });
       if (!isMounted.current) return;
       setWorkoutPlan(plan);
-      saveWorkoutToHistory(plan).catch(() => {});
+      saveWorkoutToHistory(plan).then(async () => {
+        // Prompt for a store rating on the 3rd and 10th completed workout
+        try {
+          const { loadStats } = await import("../lib/workoutHistory");
+          const stats = await loadStats();
+          if (stats.totalWorkouts === 3 || stats.totalWorkouts === 10) {
+            const isAvailable = await StoreReview.isAvailableAsync();
+            if (isAvailable) StoreReview.requestReview();
+          }
+        } catch {}
+      }).catch(() => {});
       schedulePostWorkoutNotifications().catch(() => {});
       setView("full-workout");
       shouldShowEmailCapture().then((show) => {
@@ -695,7 +706,7 @@ export default function EquipmentScannerScreen() {
         <TouchableOpacity onPress={() => router.push("/")}>
           <Ionicons name="chevron-back" size={24} color="#e5e7eb" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Equipment scanner</Text>
+        <Text style={styles.headerTitle}>Equipment Scanner</Text>
         {/* Queue count badge */}
         <View style={styles.queueBadgeContainer}>
           {scannedItems.length > 0 ? (

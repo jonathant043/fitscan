@@ -96,7 +96,7 @@ export default function HomeScreen() {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.welcomeLabel}>WELCOME BACK</Text>
+            <Text style={styles.welcomeLabel}>{isNewUser ? "WELCOME" : "WELCOME BACK"}</Text>
             <Text style={styles.nameText}>{displayName}</Text>
           </View>
           <View style={styles.headerLogoWrapper}>
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   // Header
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 24,
   },
@@ -266,16 +266,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
     opacity: 0.8,
   },
-  avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#1e293b",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarEmoji: { fontSize: 24 },
-
   // Stats row
   statsRow: {
     flexDirection: "row",

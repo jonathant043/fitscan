@@ -14,6 +14,7 @@ export const COLORS = {
   primary: '#38bdf8',
   primaryDark: '#0284c7',
   primaryLight: '#7dd3fc',
+  primaryBtn: '#2563EB',   // deep blue — use for solid button backgrounds
 
   // Text colors
   text: '#ffffff',

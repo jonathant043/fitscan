@@ -78,6 +78,7 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExistingProfile, setIsExistingProfile] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -85,6 +86,7 @@ export default function ProfileScreen() {
         const stored = await loadProfile();
         if (stored) {
           setProfile(stored);
+          setIsExistingProfile(!!stored.name?.trim());
         }
       } catch (e) {
         console.warn("Failed to load profile", e);
@@ -148,15 +150,17 @@ export default function ProfileScreen() {
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
       {/* Header */}
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.push("/")}>
           <Text style={styles.backText}>← Home</Text>
         </TouchableOpacity>
         <Image source={require("../assets/logo.png")} style={styles.headerLogo} resizeMode="contain" />
       </View>
-      <Text style={styles.headerTitle}>Set up your profile</Text>
+      <Text style={styles.headerTitle}>{isExistingProfile ? "Edit profile" : "Set up your profile"}</Text>
 
       <Text style={styles.headerSubtitle}>
-        Tell us about your goals so we can tailor your workouts.
+        {isExistingProfile
+          ? "Update your goals and preferences anytime."
+          : "Takes 30 seconds — workouts will be tailored to you."}
       </Text>
 
       {/* Name */}
