@@ -12,16 +12,16 @@ import {
   Animated,
   Image,
 } from "react-native";
-import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import {
   recognizeEquipment,
   generateWorkout,
-  getExerciseGif,
   withRetry,
   ApiError,
   type RecognitionResponse,
@@ -56,26 +56,10 @@ function confidenceColor(c: string) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function ExerciseCard({
-  ex,
-  enableGif = false,
-}: {
-  ex: Exercise | WorkoutExercise;
-  enableGif?: boolean;
-}) {
+function ExerciseCard({ ex }: { ex: Exercise | WorkoutExercise }) {
   const [expanded, setExpanded] = useState(false);
-  const [gifUrl, setGifUrl] = useState<string | null | "loading">(null);
 
-  const handleToggle = async () => {
-    const next = !expanded;
-    setExpanded(next);
-    // Fetch GIF on first expand, only once
-    if (next && enableGif && gifUrl === null) {
-      setGifUrl("loading");
-      const url = await getExerciseGif(ex.name);
-      setGifUrl(url); // null means "not found" — won't retry
-    }
-  };
+  const handleToggle = () => setExpanded((prev) => !prev);
 
   const intensityColor =
     ex.intensity === "Beginner"
@@ -132,24 +116,6 @@ function ExerciseCard({
       {/* Expanded detail */}
       {expanded && (
         <>
-          {/* GIF demo */}
-          {enableGif && gifUrl === "loading" && (
-            <ActivityIndicator
-              color={COLORS.primary}
-              size="small"
-              style={{ marginVertical: 14 }}
-            />
-          )}
-          {enableGif && gifUrl && gifUrl !== "loading" && (
-            <View style={styles.gifContainer}>
-              <WebView
-                source={{ html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh"><img src="${gifUrl}" style="max-width:100%;max-height:200px;object-fit:contain"></body></html>` }}
-                style={styles.gifImage}
-                scrollEnabled={false}
-              />
-            </View>
-          )}
-
           {ex.description ? (
             <Text style={styles.exerciseDescription}>{ex.description}</Text>
           ) : null}
@@ -200,13 +166,13 @@ function ScannedItemBadge({
 // Constants
 // ---------------------------------------------------------------------------
 const LOADING_STEPS = [
-  "Capturing photo…",
-  "Sending to AI…",
-  "Analysing equipment…",
-  "Building exercises…",
+  "Scanning equipment…",
+  "Identifying…",
+  "Building your workout…",
 ];
 
-const SLOW_CONNECTION_THRESHOLD_MS = 5_000;
+// Only warn on genuinely stuck requests — normal scans complete in ~3-5s
+const SLOW_CONNECTION_THRESHOLD_MS = 20_000;
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -219,6 +185,10 @@ export default function EquipmentScannerScreen() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
+  // Scanner is a tab screen — it stays mounted when hidden. Android releases the
+  // camera session on hide, leaving a frozen preview on return unless we
+  // deactivate/reactivate the camera with focus.
+  const isFocused = useIsFocused();
 
   // Scan queue
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
@@ -395,17 +365,33 @@ export default function EquipmentScannerScreen() {
       if (!cameraRef.current) throw new Error("Camera not ready. Please try again.");
 
       const photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: IMAGE_CONFIG.quality,
         skipProcessing: true,
       });
 
-      if (!photo?.base64) throw new Error("Could not read image data from camera.");
+      if (!photo?.uri) throw new Error("Could not read image data from camera.");
 
-      if (isMounted.current) setCurrentPhotoUri(photo.uri ?? null);
+      if (isMounted.current) setCurrentPhotoUri(photo.uri);
+
+      // Resize to max 1024px long edge + JPEG 0.7 before upload.
+      // Cuts the payload from ~1-2MB (full sensor res) to ~100-150KB.
+      const isPortrait = (photo.height ?? 0) > (photo.width ?? 0);
+      const ctx = ImageManipulator.manipulate(photo.uri);
+      ctx.resize(
+        isPortrait
+          ? { height: IMAGE_CONFIG.maxDimension }
+          : { width: IMAGE_CONFIG.maxDimension }
+      );
+      const rendered = await ctx.renderAsync();
+      const resized = await rendered.saveAsync({
+        format: SaveFormat.JPEG,
+        compress: IMAGE_CONFIG.quality,
+        base64: true,
+      });
+
+      if (!resized.base64) throw new Error("Could not process image. Please try again.");
 
       const result = await withRetry(() =>
-        recognizeEquipment({ image_base64: photo.base64!, profile: userProfile ?? undefined })
+        recognizeEquipment({ image_base64: resized.base64!, profile: userProfile ?? undefined })
       );
 
       if (!isMounted.current) return;
@@ -661,7 +647,7 @@ export default function EquipmentScannerScreen() {
                   <View style={styles.exerciseNumber}>
                     <Text style={styles.exerciseNumberText}>{idx + 1}</Text>
                   </View>
-                  <ExerciseCard ex={ex} enableGif />
+                  <ExerciseCard ex={ex} />
                 </View>
               ))}
               <View style={{ height: 16 }} />
@@ -749,7 +735,7 @@ export default function EquipmentScannerScreen() {
 
       {/* Camera */}
       <View style={styles.cameraContainer}>
-        <CameraView ref={cameraRef} style={styles.camera} facing="back" ratio="16:9">
+        <CameraView ref={cameraRef} style={styles.camera} facing="back" ratio="16:9" active={isFocused}>
           <View style={styles.cameraOverlay}>
             <Animated.View style={[styles.scanFrame, { borderColor }]} />
             {isAnalyzing && (
@@ -784,7 +770,7 @@ export default function EquipmentScannerScreen() {
 
         {showSlowHint && (
           <Text style={styles.slowHintText}>
-            Taking longer than usual — check your connection.
+            Still working — this is taking longer than usual.
           </Text>
         )}
 
@@ -1001,18 +987,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#111827",
-  },
-  gifContainer: {
-    width: "100%",
-    backgroundColor: "#0f172a",
-    borderRadius: 12,
-    overflow: "hidden",
-    marginVertical: 10,
-    alignItems: "center",
-  },
-  gifImage: {
-    width: "100%",
-    height: 200,
   },
   exerciseCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   exerciseName: { fontSize: 15, fontWeight: "600", color: "#ffffff", flex: 1, marginRight: 8 },

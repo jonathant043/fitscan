@@ -1,5 +1,5 @@
 // app/exercises.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,10 @@ import {
   TextInput,
   Modal,
   Image,
-  ActivityIndicator,
 } from "react-native";
-import { WebView } from "react-native-webview";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { getExerciseGif } from "../lib/api";
 
 type Exercise = {
   name: string;
@@ -134,23 +131,6 @@ export default function ExercisesScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
-
-  const [gifUrl, setGifUrl] = useState<string | null>(null);
-  const [gifLoading, setGifLoading] = useState(false);
-
-  // Fetch GIF whenever a new exercise is selected
-  useEffect(() => {
-    if (!selectedExercise) {
-      setGifUrl(null);
-      return;
-    }
-    setGifUrl(null);
-    setGifLoading(true);
-    getExerciseGif(selectedExercise.name)
-      .then((url) => setGifUrl(url))
-      .catch(() => {})
-      .finally(() => setGifLoading(false));
-  }, [selectedExercise]);
 
   const categories = Object.keys(exerciseCategories);
 
@@ -284,24 +264,6 @@ export default function ExercisesScreen() {
                 <Text style={styles.modalSubtitle}>
                   {selectedExercise.equipment} • {selectedExercise.muscleGroup}
                 </Text>
-
-                {/* Exercise demo GIF */}
-                {gifLoading && (
-                  <ActivityIndicator
-                    color="#0ea5e9"
-                    size="small"
-                    style={{ marginVertical: 20 }}
-                  />
-                )}
-                {!gifLoading && gifUrl && (
-                  <View style={styles.gifContainer}>
-                    <WebView
-                      source={{ html: `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0f172a;display:flex;align-items:center;justify-content:center;height:100vh"><img src="${gifUrl}" style="max-width:100%;max-height:200px;object-fit:contain"></body></html>` }}
-                      style={styles.gifImage}
-                      scrollEnabled={false}
-                    />
-                  </View>
-                )}
 
                 <Text style={styles.modalDescription}>
                   {selectedExercise.description}
@@ -465,17 +427,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     color: "#9ca3af",
-  },
-  gifContainer: {
-    marginTop: 14,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#0f172a",
-    alignItems: "center",
-  },
-  gifImage: {
-    width: "100%",
-    height: 200,
   },
   modalDescription: {
     marginTop: 10,

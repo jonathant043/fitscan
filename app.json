@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.fitscan.app",
-      "versionCode": 3,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#020817"
