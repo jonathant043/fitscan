@@ -22,7 +22,7 @@
     },
     "android": {
       "package": "com.fitscan.app",
-      "versionCode": 6,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#020817"
@@ -49,12 +49,6 @@
         }
       ],
       "./plugins/withComposeCompiler",
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.fitscan.app"
-        }
-      ],
       [
         "expo-build-properties",
         {

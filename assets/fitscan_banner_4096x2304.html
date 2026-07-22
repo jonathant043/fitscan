@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { width: 4096px; height: 2304px; overflow: hidden; }
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Exo+2:wght@400;600&display=swap');
+  .banner-wrap {
+    width: 4096px;
+    height: 2304px;
+    background: #070B14;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 160px 260px;
+    font-family: 'Exo 2', sans-serif;
+    position: relative;
+    overflow: hidden;
+  }
+  .banner-wrap::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: 10%;
+    width: 50%;
+    height: 140%;
+    background: radial-gradient(ellipse at center, rgba(0,200,255,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .grid-lines {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(0,200,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,0.04) 1px, transparent 1px);
+    background-size: 120px 120px;
+  }
+  .left {
+    flex: 1;
+    z-index: 2;
+  }
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 36px;
+    margin-bottom: 80px;
+  }
+  .logo-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 96px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: 2px;
+  }
+  .headline {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 180px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 0.95;
+    margin-bottom: 60px;
+    letter-spacing: 2px;
+  }
+  .subline {
+    font-size: 56px;
+    color: #00C8FF;
+    font-weight: 600;
+    margin-bottom: 80px;
+    letter-spacing: 1px;
+  }
+  .bullets {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    margin-bottom: 100px;
+  }
+  .bullet {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-size: 44px;
+    color: rgba(255,255,255,0.85);
+  }
+  .bullet-dot {
+    width: 18px;
+    height: 18px;
+    background: #00C8FF;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .gplay-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 20px;
+    background: #ffffff;
+    color: #070B14;
+    padding: 28px 60px;
+    border-radius: 16px;
+    font-size: 36px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  .right {
+    flex: 0 0 38%;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .phone-mock {
+    width: 520px;
+    height: 1060px;
+    background: #0D1526;
+    border-radius: 60px;
+    border: 3px solid rgba(0,200,255,0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 0 120px rgba(0,200,255,0.14);
+  }
+  .phone-header {
+    background: #0D1526;
+    padding: 40px 32px 24px;
+    border-bottom: 1px solid rgba(0,200,255,0.15);
+  }
+  .phone-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    color: #00C8FF;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 3px;
+  }
+  .phone-body {
+    flex: 1;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .scan-box {
+    flex: 1;
+    background: rgba(0,200,255,0.05);
+    border: 2px dashed rgba(0,200,255,0.35);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .scan-text {
+    color: rgba(0,200,255,0.55);
+    font-size: 22px;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .exercise-row {
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ex-name {
+    color: #ffffff;
+    font-size: 22px;
+  }
+  .ex-reps {
+    color: #00C8FF;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .accent-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, transparent, #00C8FF, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="banner-wrap">
+  <div class="grid-lines"></div>
+
+  <div class="left">
+    <div class="logo-row">
+      <svg width="110" height="120" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 10 H75 Q85 10 85 20 V35 Q85 45 75 45 H45 V55 H70 Q78 55 78 63 V73 Q78 81 70 81 H45 V100 H15 Z" fill="#2563EB"/>
+        <path d="M45 45 H65 Q73 45 73 53 V55 H45 Z" fill="#22C55E" opacity="0.8"/>
+        <rect x="82" y="50" width="12" height="12" rx="2" fill="#2563EB"/>
+        <rect x="82" y="68" width="12" height="12" rx="2" fill="#2563EB" opacity="0.6"/>
+        <line x1="38" y1="85" x2="20" y2="100" stroke="#3B82F6" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      <span class="logo-name">FitScan</span>
+    </div>
+
+    <div class="headline">Scan. Train.<br>Repeat.</div>
+    <div class="subline">Point your camera — get a full workout.</div>
+
+    <div class="bullets">
+      <div class="bullet"><div class="bullet-dot"></div><span>Works on any machine or free weight</span></div>
+      <div class="bullet"><div class="bullet-dot"></div><span>AI-powered workout plans tailored to you</span></div>
+      <div class="bullet"><div class="bullet-dot"></div><span>10 free scans every month</span></div>
+    </div>
+
+    <div class="gplay-badge">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+        <path d="M3 20.5v-17c0-.83 1-.83 1.5-.5L20 12l-15.5 8.5c-.5.33-1.5.33-1.5-.5z" fill="#070B14"/>
+      </svg>
+      Get it on Google Play
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="phone-mock">
+      <div class="phone-header">
+        <div class="phone-title">FITSCAN</div>
+      </div>
+      <div class="phone-body">
+        <div class="scan-box">
+          <div class="scan-text">[ Scanning equipment... ]<br>Barbell detected ✓</div>
+        </div>
+        <div class="exercise-row"><span class="ex-name">Bench Press</span><span class="ex-reps">4×10</span></div>
+        <div class="exercise-row"><span class="ex-name">Incline Fly</span><span class="ex-reps">3×12</span></div>
+        <div class="exercise-row"><span class="ex-name">Cable Crossover</span><span class="ex-reps">3×15</span></div>
+        <div class="exercise-row"><span class="ex-name">Tricep Pushdown</span><span class="ex-reps">4×12</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="accent-line"></div>
+</div>
+</body>
+</html>

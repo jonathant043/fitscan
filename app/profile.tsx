@@ -11,14 +11,20 @@ import {
   Alert,
   Image,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   loadProfile,
   saveProfile,
   clearProfile,
   UserProfile,
 } from "../lib/profileStorage";
+import { getSubscriptionStatus } from "../lib/scanLimit";
+import { restorePurchases } from "../lib/purchases";
+import { deleteMyData } from "../lib/api";
+import Paywall from "./paywall";
 
 const EXPERIENCE_LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
 
@@ -31,6 +37,10 @@ const GOALS = [
 ] as const;
 
 const DAYS_PER_WEEK = [2, 3, 4, 5, 6] as const;
+
+const TRAINING_LOCATIONS = ["Commercial gym", "Home", "Both"] as const;
+
+const INJURY_AREAS = ["Knees", "Shoulders", "Lower back"] as const;
 
 const EQUIPMENT_OPTIONS = [
   "Dumbbells",
@@ -79,6 +89,8 @@ export default function ProfileScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isExistingProfile, setIsExistingProfile] = useState(false);
+  const [isPro, setIsPro] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -88,6 +100,8 @@ export default function ProfileScreen() {
           setProfile(stored);
           setIsExistingProfile(!!stored.name?.trim());
         }
+        const status = await getSubscriptionStatus();
+        setIsPro(status.isPro);
       } catch (e) {
         console.warn("Failed to load profile", e);
       } finally {
@@ -282,6 +296,73 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Training location */}
+      <View style={styles.section}>
+        <Text style={styles.label}>Where do you train?</Text>
+        <View style={styles.chipRow}>
+          {TRAINING_LOCATIONS.map((loc) => {
+            const isActive = profile.trainingLocation === loc;
+            return (
+              <TouchableOpacity
+                key={loc}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => setProfile({ ...profile, trainingLocation: loc })}
+              >
+                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                  {loc}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Injury areas */}
+      <View style={styles.section}>
+        <Text style={styles.label}>Areas to be careful with</Text>
+        <View style={styles.chipRow}>
+          {INJURY_AREAS.map((area) => {
+            const list = profile.avoidAreas ?? [];
+            const isActive = list.includes(area);
+            return (
+              <TouchableOpacity
+                key={area}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => {
+                  const current = profile.avoidAreas ?? [];
+                  const next = isActive
+                    ? current.filter((a) => a !== area)
+                    : [...current, area];
+                  setProfile({ ...profile, avoidAreas: next });
+                }}
+              >
+                <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
+                  {area}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Upgrade to Pro */}
+      {!isPro && (
+        <TouchableOpacity
+          style={styles.upgradeRow}
+          onPress={() => setShowPaywall(true)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.upgradeRowLeft}>
+            <Ionicons name="star" size={20} color="#f59e0b" />
+            <View>
+              <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
+              <Text style={styles.upgradeSubtitle}>Unlimited scans & custom workouts</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#64748b" />
+        </TouchableOpacity>
+      )}
+
       {/* Actions */}
       <View style={styles.buttonRow}>
         <TouchableOpacity
@@ -297,7 +378,63 @@ export default function ProfileScreen() {
         <TouchableOpacity style={styles.secondaryButton} onPress={handleReset}>
           <Text style={styles.secondaryButtonText}>Reset</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={async () => {
+            const restored = await restorePurchases();
+            if (restored) {
+              setIsPro(true);
+              Alert.alert("Restored", "Your Pro subscription has been restored.");
+            } else {
+              Alert.alert("No purchases found", "We couldn't find any previous purchases to restore.");
+            }
+          }}
+        >
+          <Text style={styles.secondaryButtonText}>Restore purchases</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.secondaryButton, { marginTop: 12, borderColor: "#ef4444" }]}
+          onPress={() => {
+            Alert.alert(
+              "Delete my data",
+              "This will permanently delete your scan history, workout history, and analytics from our servers. Your local profile and settings will remain on this device.\n\nPurchase and subscription records are retained by Google Play and RevenueCat as required by law.\n\nThis cannot be undone.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete",
+                  style: "destructive",
+                  onPress: async () => {
+                    try {
+                      const result = await deleteMyData();
+                      const total = Object.values(result.deleted).reduce((a, b) => a + b, 0);
+                      Alert.alert(
+                        "Data deleted",
+                        `${total} record${total !== 1 ? "s" : ""} removed from our servers.`
+                      );
+                    } catch {
+                      Alert.alert("Error", "Could not delete data. Please check your connection and try again.");
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+        >
+          <Text style={[styles.secondaryButtonText, { color: "#ef4444" }]}>Delete my data</Text>
+        </TouchableOpacity>
       </View>
+
+      <Paywall
+        visible={showPaywall}
+        entryContext="voluntary"
+        onClose={() => setShowPaywall(false)}
+        onProActivated={() => {
+          setShowPaywall(false);
+          setIsPro(true);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -439,5 +576,33 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: "#9CA3AF",
     fontSize: 15,
+  },
+
+  // Upgrade row
+  upgradeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 16,
+    marginTop: 24,
+  },
+  upgradeRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  upgradeTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#ffffff",
+  },
+  upgradeSubtitle: {
+    fontSize: 12,
+    color: "#9CA3AF",
+    marginTop: 1,
   },
 });

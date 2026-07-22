@@ -13,9 +13,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { loadProfile, UserProfile } from "../lib/profileStorage";
 import { loadStats, loadHistory, getSmartNudge, WorkoutStats, HistoryEntry } from "../lib/workoutHistory";
-import { COLORS } from "../lib/constants";
+import { COLORS, STORAGE_KEYS } from "../lib/constants";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -67,18 +68,30 @@ export default function HomeScreen() {
   const [recentHistory, setRecentHistory] = useState<HistoryEntry[]>([]);
   const [nudge, setNudge] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [quizDone, setQuizDone] = useState(true); // default true to avoid flash
 
   useFocusEffect(
     React.useCallback(() => {
       let active = true;
       (async () => {
-        const [p, s, h] = await Promise.all([loadProfile(), loadStats(), loadHistory()]);
+        const [p, s, h, quizFlag] = await Promise.all([
+          loadProfile(),
+          loadStats(),
+          loadHistory(),
+          AsyncStorage.getItem(STORAGE_KEYS.quizCompleted),
+        ]);
         if (!active) return;
         setProfile(p);
         setStats(s);
         setRecentHistory([...h].reverse().slice(0, 3));
         setNudge(getSmartNudge(h));
+        setQuizDone(quizFlag === "true");
         setProfileLoaded(true);
+
+        // New user with no profile and no quiz → redirect to quiz
+        if (!p?.name && quizFlag !== "true") {
+          router.replace("/quiz");
+        }
       })();
       return () => { active = false; };
     }, [])
@@ -145,6 +158,19 @@ export default function HomeScreen() {
               <Text style={styles.onboardingCTAText}>Set up my profile</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* ── Quiz banner for existing users ── */}
+        {profileLoaded && !quizDone && profile?.name && (
+          <TouchableOpacity
+            style={styles.nudgeCard}
+            onPress={() => router.push("/quiz")}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="sparkles-outline" size={18} color={COLORS.primary} />
+            <Text style={styles.nudgeText}>Answer 5 quick questions to personalize your workouts</Text>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
         )}
 
         {/* ── Smart Nudge ── */}

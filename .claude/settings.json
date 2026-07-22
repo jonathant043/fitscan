@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(eas build:list --platform android --limit 1)"
+    ]
+  }
+}

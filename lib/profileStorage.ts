@@ -1,12 +1,16 @@
 // lib/profileStorage.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+export type TrainingLocation = "Commercial gym" | "Home" | "Both";
+
 export type UserProfile = {
   name: string;
   experienceLevel: "Beginner" | "Intermediate" | "Advanced";
   primaryGoal: string;
   daysPerWeek: number;
   equipmentAccess: string[];
+  trainingLocation?: TrainingLocation;
+  avoidAreas?: string[];
 };
 
 const STORAGE_KEY = "fitscan:userProfile";

@@ -130,6 +130,15 @@ export const STORAGE_KEYS = {
   workoutHistory: 'fitscan:workoutHistory',
   favorites: 'fitscan:favorites',
   scanLimit: 'fitscan:scanLimit',
+  weightUnit: 'fitscan:weightUnit',
+  reviewPromptShown: 'fitscan:reviewPromptShown',
+  inProgressSetLogs: 'fitscan:inProgressSetLogs',
+  inProgressWorkout: 'fitscan:inProgressWorkout',
+  deviceId: 'fitscan:deviceId',
+  quizCompleted: 'fitscan:quizCompleted',
+  paywallLastShown: 'fitscan:paywallLastShown',
+  paywallAutoShown: 'fitscan:paywallAutoShown',
+  firstScanDone: 'fitscan:firstScanDone',
 } as const;
 
 export const SCAN_LIMIT = {

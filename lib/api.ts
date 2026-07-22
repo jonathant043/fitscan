@@ -1,15 +1,13 @@
 // lib/api.ts
 // Centralized API service layer
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from './constants';
+import { getDeviceId } from './deviceId';
 
-async function getCustomerIdHeader(): Promise<Record<string, string>> {
+async function getDeviceIdHeader(): Promise<Record<string, string>> {
   try {
-    const raw = await AsyncStorage.getItem('fitscan:scanLimit');
-    if (!raw) return {};
-    const data = JSON.parse(raw);
-    if (data?.customerId) return { 'x-customer-id': data.customerId };
+    const id = await getDeviceId();
+    return { 'x-device-id': id };
   } catch {}
   return {};
 }
@@ -104,6 +102,18 @@ export interface Exercise {
   description: string;
 }
 
+export interface ScanUsage {
+  used: number;
+  limit: number;
+}
+
+export interface ScanLimitResponse {
+  code: 'SCAN_LIMIT';
+  used: number;
+  limit: number;
+  resetsOn: string;
+}
+
 export interface RecognitionResponse {
   equipment_type: string;
   confidence: 'low' | 'medium' | 'high';
@@ -112,6 +122,7 @@ export interface RecognitionResponse {
   ai_used: boolean;
   from: 'openai' | 'fallback';
   note?: string;
+  scanUsage?: ScanUsage;
 }
 
 /** A single scanned piece of equipment held in multi-scan state */
@@ -158,6 +169,8 @@ export async function checkHealth(): Promise<{
   status: string;
   openaiConfigured: boolean;
   authEnabled: boolean;
+  monetizationEnabled?: boolean;
+  scanCap?: number;
 }> {
   try {
     const response = await fetchWithTimeout(`${BACKEND_URL}/health`, {
@@ -183,7 +196,7 @@ export async function recognizeEquipment(
   request: RecognitionRequest
 ): Promise<RecognitionResponse> {
   try {
-    const customerHeader = await getCustomerIdHeader();
+    const customerHeader = await getDeviceIdHeader();
     const response = await fetchWithTimeout(`${BACKEND_URL}/equipment/recognize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...customerHeader },
@@ -199,13 +212,18 @@ export async function recognizeEquipment(
       );
     }
 
-    const data: RecognitionResponse = await response.json();
+    const data = await response.json();
+
+    // Server-side scan limit hit — structured response, not an error
+    if (data.code === 'SCAN_LIMIT') {
+      throw new ApiError('SCAN_LIMIT', 200, data as ScanLimitResponse);
+    }
 
     if (!data.equipment_type || !data.exercises) {
       throw new ApiError('Invalid response from server', 500, data);
     }
 
-    return data;
+    return data as RecognitionResponse;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof Error) throw new ApiError(`Network error: ${error.message}`, 0);
@@ -220,7 +238,7 @@ export async function generateWorkout(
   request: WorkoutGenerateRequest
 ): Promise<WorkoutPlan> {
   try {
-    const customerHeader = await getCustomerIdHeader();
+    const customerHeader = await getDeviceIdHeader();
     const response = await fetchWithTimeout(
       `${BACKEND_URL}/workout/generate`,
       {
@@ -255,20 +273,7 @@ export async function generateWorkout(
   }
 }
 
-/**
- * Capture a user's email for cross-device sync and lead list
- */
-export async function captureEmail(email: string): Promise<void> {
-  try {
-    await fetchWithTimeout(`${BACKEND_URL}/users/capture-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, source: 'app_post_workout' }),
-    }, 10_000);
-  } catch {
-    // Fire-and-forget — never block UX for this
-  }
-}
+// Email capture removed — re-add when cloud sync ships
 
 /**
  * Fetch an exercise demo GIF URL by name.
@@ -291,18 +296,43 @@ export async function getExerciseGif(name: string): Promise<string | null> {
 }
 
 /**
- * Track an analytics event (fire-and-forget)
+ * Track an analytics event (fire-and-forget).
+ * Automatically includes the device metering ID.
  */
-export async function trackEvent(event: string, deviceId?: string, metadata?: Record<string, unknown>): Promise<void> {
+export async function trackEvent(event: string, _deviceId?: string, metadata?: Record<string, unknown>): Promise<void> {
   try {
+    const autoDeviceId = await getDeviceId().catch(() => _deviceId);
     await fetchWithTimeout(`${BACKEND_URL}/events/track`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event, deviceId, metadata }),
+      body: JSON.stringify({ event, deviceId: autoDeviceId ?? _deviceId, metadata }),
     }, 5_000);
   } catch {
     // Never block UX for analytics
   }
+}
+
+/**
+ * Delete all server-side data for this device (GDPR / Play Data Safety).
+ * Purges events, workouts, and scan_meters rows keyed on x-device-id.
+ */
+export async function deleteMyData(): Promise<{ deleted: Record<string, number> }> {
+  const deviceHeader = await getDeviceIdHeader();
+  const response = await fetchWithTimeout(`${BACKEND_URL}/users/data`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...deviceHeader },
+  }, 15_000);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new ApiError(
+      (errorData as { message?: string }).message || 'Failed to delete data',
+      response.status,
+      errorData
+    );
+  }
+
+  return await response.json();
 }
 
 /**
@@ -349,63 +379,3 @@ export async function isBackendReachable(): Promise<boolean> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Stripe subscription helpers
-// ---------------------------------------------------------------------------
-
-export type PlanId = "basic" | "pro" | "annual";
-
-export interface SetupIntentResponse {
-  clientSecret: string;
-  customerId: string;
-}
-
-export interface ActivateSubscriptionResponse {
-  subscriptionId: string;
-  status: string;
-  trialEnd: number | null;
-  currentPeriodEnd: number;
-}
-
-/** Returns the Stripe publishable key from the backend. */
-export async function getStripePublishableKey(): Promise<string> {
-  const response = await fetchWithTimeout(`${BACKEND_URL}/subscriptions/publishable-key`);
-  if (!response.ok) throw new ApiError("Failed to fetch Stripe key", response.status);
-  const data = await response.json();
-  return data.publishableKey;
-}
-
-/** Creates a Stripe Customer + SetupIntent. Returns the clientSecret for PaymentSheet. */
-export async function createSetupIntent(
-  planId: PlanId,
-  email?: string
-): Promise<SetupIntentResponse> {
-  const response = await fetchWithTimeout(`${BACKEND_URL}/subscriptions/create-setup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan_id: planId, email }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new ApiError(err.message || "Could not initialise payment", response.status);
-  }
-  return response.json();
-}
-
-/** Activates the subscription after the card is saved via PaymentSheet. */
-export async function activateSubscription(
-  customerId: string,
-  paymentMethodId: string,
-  planId: PlanId
-): Promise<ActivateSubscriptionResponse> {
-  const response = await fetchWithTimeout(`${BACKEND_URL}/subscriptions/activate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ customerId, paymentMethodId, plan_id: planId }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new ApiError(err.message || "Could not activate subscription", response.status);
-  }
-  return response.json();
-}

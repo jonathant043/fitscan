@@ -5,5 +5,23 @@
     "paths": {
       "@/*": ["./*"]
     }
-  }
+  },
+  "exclude": [
+    "app_backup_*",
+    "backups",
+    "pages",
+    "src",
+    "storage",
+    "components/__tests__",
+    "lib/__tests__",
+    "components/ExternalLink.tsx",
+    "components/HapticTab.tsx",
+    "components/HelloWave.tsx",
+    "components/ParallaxScrollView.tsx",
+    "components/ThemedText.tsx",
+    "components/ThemedView.tsx",
+    "components/ui",
+    "hooks/**/*",
+    "storage/**/*"
+  ]
 }

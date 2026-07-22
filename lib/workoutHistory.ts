@@ -9,12 +9,20 @@ import type { WorkoutPlan } from './api';
 // Types
 // ---------------------------------------------------------------------------
 
+/** A single logged set — weight stored in lbs (canonical). */
+export interface SetLog {
+  setNumber: number;
+  weightLbs: number;  // 0 = bodyweight / not applicable
+  reps: number;
+}
+
 export interface SavedExercise {
   name: string;
   sets: string;
   reps: string;
   muscleGroups: string[];
   description?: string;
+  setLogs?: SetLog[];  // per-set tracking (Workout Companion v1)
 }
 
 export interface HistoryEntry {
@@ -110,7 +118,7 @@ async function saveHistory(entries: HistoryEntry[]): Promise<void> {
  * Append a completed WorkoutPlan to the history log.
  * Called fire-and-forget from the scanner screen.
  */
-export async function saveWorkoutToHistory(plan: WorkoutPlan): Promise<void> {
+export async function saveWorkoutToHistory(plan: WorkoutPlan, exerciseSetLogs?: Record<number, SetLog[]>): Promise<void> {
   const history = await loadHistory();
   const entry: HistoryEntry = {
     id: makeId(),
@@ -121,12 +129,13 @@ export async function saveWorkoutToHistory(plan: WorkoutPlan): Promise<void> {
     exercise_count: plan.exercises?.length ?? 0,
     estimated_duration_minutes: plan.estimated_duration_minutes ?? 0,
     muscle_groups: extractMuscleGroups(plan),
-    exercises: (plan.exercises ?? []).map((ex) => ({
+    exercises: (plan.exercises ?? []).map((ex, idx) => ({
       name: ex.name,
       sets: ex.sets,
       reps: ex.reps,
       muscleGroups: ex.muscleGroups ?? [],
       description: ex.description,
+      setLogs: exerciseSetLogs?.[idx],
     })),
     ai_used: plan.ai_used ?? false,
   };
@@ -264,4 +273,26 @@ export function getSmartNudge(history: HistoryEntry[]): string | null {
   const { muscle, days } = neglected[0];
   if (days === null) return `You haven't trained ${muscle} yet — try it on your next scan!`;
   return `You haven't trained ${muscle} in ${days} days — time to hit it!`;
+}
+
+// ---------------------------------------------------------------------------
+// "Last time" set-log lookup
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the most recent SetLog[] for an exercise by name (case-insensitive).
+ * Returns undefined if the exercise has never been logged with set data.
+ */
+export async function getLastSetLogs(exerciseName: string): Promise<SetLog[] | undefined> {
+  const history = await loadHistory();
+  const target = exerciseName.toLowerCase();
+  // Walk backwards (most recent first)
+  for (let i = history.length - 1; i >= 0; i--) {
+    for (const ex of history[i].exercises ?? []) {
+      if (ex.name.toLowerCase() === target && ex.setLogs && ex.setLogs.length > 0) {
+        return ex.setLogs;
+      }
+    }
+  }
+  return undefined;
 }

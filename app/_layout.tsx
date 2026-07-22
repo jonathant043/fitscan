@@ -4,16 +4,12 @@ import { View, TouchableOpacity, StyleSheet, Text, Animated, Image } from "react
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as SplashScreen from "expo-splash-screen";
-import { StripeProvider } from "@stripe/stripe-react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { OfflineNotice } from "../components/OfflineNotice";
 import { COLORS } from "../lib/constants";
 import { registerForPushNotifications } from "../lib/notifications";
-
-// Stripe publishable key — set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your .env
-const STRIPE_PUBLISHABLE_KEY =
-  process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "pk_test_placeholder";
+import { initPurchases } from "../lib/purchases";
 
 // Keep the native splash hidden until our custom one is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -214,11 +210,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     registerForPushNotifications().catch(() => {});
+    initPurchases().catch(() => {});
   }, []);
 
   return (
     <SafeAreaProvider>
-    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="fitscan">
     <ErrorBoundary>
       <View style={{ flex: 1 }}>
         <OfflineNotice />
@@ -289,6 +285,7 @@ export default function RootLayout() {
           <Tabs.Screen name="home" options={{ href: null }} />
           <Tabs.Screen name="+not-found" options={{ href: null }} />
           <Tabs.Screen name="paywall" options={{ href: null }} />
+          <Tabs.Screen name="quiz" options={{ href: null }} />
         </Tabs>
 
         {/* Custom splash overlay — rendered on top of tabs, removed when done */}
@@ -297,7 +294,6 @@ export default function RootLayout() {
         )}
       </View>
     </ErrorBoundary>
-    </StripeProvider>
     </SafeAreaProvider>
   );
 }

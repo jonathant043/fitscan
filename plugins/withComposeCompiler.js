@@ -2,7 +2,7 @@ const { withProjectBuildGradle } = require('@expo/config-plugins');
 
 /**
  * Adds the Kotlin Compose Compiler Gradle plugin to the root build.gradle.
- * Required for @stripe/stripe-react-native 0.50+ with Kotlin 2.0+.
+ * Required for native modules that use Jetpack Compose with Kotlin 2.0+.
  */
 module.exports = function withComposeCompiler(config) {
   return withProjectBuildGradle(config, (config) => {

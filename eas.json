@@ -14,15 +14,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://web-production-a5aa3.up.railway.app",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51T9vcaRtR9iXPtP7Y3nyBYRd5JruJUx5Q6H1JrCV8Huu7VQOt3jcu138rSMRlsyCH42GMgr9fH2iQCboqMP8ul8U00jm5ib3RB"
+        "EXPO_PUBLIC_BACKEND_URL": "https://web-production-a5aa3.up.railway.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_BACKEND_URL": "https://web-production-a5aa3.up.railway.app",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51T9vcPRumhbnvaOxJt8ajX8LV45GUE2aK09qBqtOE4sbk43t1MxWMwVJfbAX5IVm1VrbVlTEnbisF1WIugOo3YPy00G0CEOnF9"
+        "EXPO_PUBLIC_REVENUECAT_API_KEY": "goog_ZipDgXtnBRnLlsmTvbLJODeZxZE"
       }
     }
   },

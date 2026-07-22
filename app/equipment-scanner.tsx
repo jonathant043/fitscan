@@ -1,5 +1,5 @@
 // app/equipment-scanner.tsx
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,10 @@ import {
   Alert,
   Animated,
   Image,
+  TextInput,
+  AppState,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -23,6 +26,7 @@ import {
   recognizeEquipment,
   generateWorkout,
   withRetry,
+  trackEvent,
   ApiError,
   type RecognitionResponse,
   type ScannedItem,
@@ -30,12 +34,14 @@ import {
   type WorkoutExercise,
   type Exercise,
 } from "../lib/api";
-import { COLORS, IMAGE_CONFIG, SCAN_LIMIT } from "../lib/constants";
-import { saveWorkoutToHistory } from "../lib/workoutHistory";
+import { COLORS, IMAGE_CONFIG, SCAN_LIMIT, STORAGE_KEYS } from "../lib/constants";
+import { saveWorkoutToHistory, getLastSetLogs, type SetLog } from "../lib/workoutHistory";
 import { consumeScan, getSubscriptionStatus } from "../lib/scanLimit";
 import { loadProfile, type UserProfile } from "../lib/profileStorage";
+import { getWeightUnit, setWeightUnit, toDisplay, toLbs, type WeightUnit } from "../lib/weightUnit";
+import { checkProEntitlement } from "../lib/purchases";
+import { scheduleRestTimerNotification, cancelRestTimerNotification, vibrateOnTimerComplete } from "../lib/restTimer";
 import Paywall from "./paywall";
-import EmailCaptureModal, { shouldShowEmailCapture } from "../components/EmailCaptureModal";
 import { schedulePostWorkoutNotifications } from "../lib/notifications";
 import * as StoreReview from "expo-store-review";
 
@@ -56,6 +62,7 @@ function confidenceColor(c: string) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+/** Read-only ExerciseCard — used in single-result sheet */
 function ExerciseCard({ ex }: { ex: Exercise | WorkoutExercise }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -74,7 +81,6 @@ function ExerciseCard({ ex }: { ex: Exercise | WorkoutExercise }) {
       activeOpacity={0.75}
       style={styles.exerciseCard}
     >
-      {/* Header row — always visible */}
       <View style={styles.exerciseCardHeader}>
         <Text style={styles.exerciseName}>{ex.name}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -95,7 +101,6 @@ function ExerciseCard({ ex }: { ex: Exercise | WorkoutExercise }) {
         <Text style={styles.exerciseEquipmentLabel}>{ex.equipment}</Text>
       ) : null}
 
-      {/* Always-visible summary line */}
       {!expanded && (
         <View style={styles.exerciseMetaRow}>
           {ex.muscleGroups?.length > 0 && (
@@ -113,13 +118,11 @@ function ExerciseCard({ ex }: { ex: Exercise | WorkoutExercise }) {
         </View>
       )}
 
-      {/* Expanded detail */}
       {expanded && (
         <>
           {ex.description ? (
             <Text style={styles.exerciseDescription}>{ex.description}</Text>
           ) : null}
-
           <View style={styles.exerciseMetaRow}>
             {ex.muscleGroups?.length > 0 && (
               <Text style={styles.exerciseMeta}>
@@ -140,6 +143,195 @@ function ExerciseCard({ ex }: { ex: Exercise | WorkoutExercise }) {
         </>
       )}
     </TouchableOpacity>
+  );
+}
+
+/** Interactive ExerciseCard — used in full-workout view for per-set logging */
+function WorkoutExerciseCard({
+  ex,
+  exerciseIndex,
+  setLogs,
+  lastTimeLogs,
+  weightUnit,
+  onSetLogChange,
+  onStartRest,
+}: {
+  ex: WorkoutExercise;
+  exerciseIndex: number;
+  setLogs: SetLog[];
+  lastTimeLogs: SetLog[] | undefined;
+  weightUnit: WeightUnit;
+  onSetLogChange: (exerciseIndex: number, setNumber: number, field: 'weightLbs' | 'reps', value: number) => void;
+  onStartRest: (seconds: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  const numSets = parseInt(ex.sets, 10) || 3;
+  const suggestedReps = parseInt(ex.reps, 10) || 10;
+
+  return (
+    <View style={styles.exerciseCard}>
+      <TouchableOpacity onPress={() => setExpanded((p) => !p)} activeOpacity={0.75}>
+        <View style={styles.exerciseCardHeader}>
+          <Text style={styles.exerciseName}>{ex.name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {ex.equipment ? (
+              <Text style={[styles.exerciseTag, { color: COLORS.primary }]}>
+                {ex.equipment}
+              </Text>
+            ) : null}
+            <Ionicons
+              name={expanded ? "chevron-up" : "chevron-down"}
+              size={14}
+              color="#4b5563"
+            />
+          </View>
+        </View>
+        <View style={styles.exerciseMetaRow}>
+          <Text style={styles.exerciseMeta}>
+            {ex.sets} sets × {ex.reps} reps
+          </Text>
+          {ex.rest_seconds ? (
+            <Text style={styles.exerciseMeta}>{ex.rest_seconds}s rest</Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+
+      {expanded && (
+        <View style={{ marginTop: 8 }}>
+          {/* Last time banner */}
+          {lastTimeLogs && lastTimeLogs.length > 0 && (
+            <View style={styles.lastTimeBanner}>
+              <Ionicons name="time-outline" size={12} color="#64748b" />
+              <Text style={styles.lastTimeText}>
+                Last: {lastTimeLogs.map((l) =>
+                  `${toDisplay(l.weightLbs, weightUnit)}${weightUnit} × ${l.reps}`
+                ).join(', ')}
+              </Text>
+            </View>
+          )}
+
+          {/* Set header */}
+          <View style={styles.setHeaderRow}>
+            <Text style={[styles.setHeaderLabel, { flex: 0.5 }]}>Set</Text>
+            <Text style={[styles.setHeaderLabel, { flex: 1 }]}>Weight ({weightUnit})</Text>
+            <Text style={[styles.setHeaderLabel, { flex: 1 }]}>Reps</Text>
+            <View style={{ width: 36 }} />
+          </View>
+
+          {/* Set rows */}
+          {Array.from({ length: numSets }, (_, i) => {
+            const log = setLogs.find((l) => l.setNumber === i + 1);
+            const lastLog = lastTimeLogs?.[i];
+            const displayWeight = log ? toDisplay(log.weightLbs, weightUnit) : undefined;
+            const placeholderWeight = lastLog ? String(toDisplay(lastLog.weightLbs, weightUnit)) : '0';
+            const placeholderReps = lastLog ? String(lastLog.reps) : String(suggestedReps);
+
+            return (
+              <View key={i} style={styles.setRow}>
+                <Text style={[styles.setNumberLabel, { flex: 0.5 }]}>{i + 1}</Text>
+                <TextInput
+                  style={[styles.setInput, { flex: 1 }]}
+                  keyboardType="numeric"
+                  placeholder={placeholderWeight}
+                  placeholderTextColor="#4b5563"
+                  value={displayWeight !== undefined ? String(displayWeight) : ''}
+                  onChangeText={(t) => {
+                    const v = parseFloat(t) || 0;
+                    onSetLogChange(exerciseIndex, i + 1, 'weightLbs', toLbs(v, weightUnit));
+                  }}
+                />
+                <TextInput
+                  style={[styles.setInput, { flex: 1 }]}
+                  keyboardType="numeric"
+                  placeholder={placeholderReps}
+                  placeholderTextColor="#4b5563"
+                  value={log?.reps ? String(log.reps) : ''}
+                  onChangeText={(t) => {
+                    const v = parseInt(t, 10) || 0;
+                    onSetLogChange(exerciseIndex, i + 1, 'reps', v);
+                  }}
+                />
+                {/* Rest button — shown after logging a set */}
+                {log && ex.rest_seconds && i < numSets - 1 ? (
+                  <TouchableOpacity
+                    style={styles.restBtn}
+                    onPress={() => onStartRest(ex.rest_seconds)}
+                  >
+                    <Ionicons name="timer-outline" size={16} color={COLORS.primary} />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ width: 36 }} />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** Rest timer overlay shown between sets */
+function RestTimerOverlay({
+  seconds,
+  onSkip,
+}: {
+  seconds: number;
+  onSkip: () => void;
+}) {
+  const [remaining, setRemaining] = useState(seconds);
+  const startTimeRef = useRef(Date.now());
+  const totalSeconds = useRef(seconds);
+
+  // Handle app backgrounding — recalculate remaining on return
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const left = Math.max(0, totalSeconds.current - elapsed);
+        setRemaining(left);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (remaining <= 0) {
+      vibrateOnTimerComplete();
+      cancelRestTimerNotification();
+      const t = setTimeout(onSkip, 800);
+      return () => clearTimeout(t);
+    }
+    const id = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      setRemaining(Math.max(0, totalSeconds.current - elapsed));
+    }, 250);
+    return () => clearInterval(id);
+  }, [remaining <= 0]);
+
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const progress = 1 - remaining / totalSeconds.current;
+
+  return (
+    <View style={styles.restTimerOverlay}>
+      <Text style={styles.restTimerLabel}>Rest</Text>
+      <Text style={styles.restTimerTime}>
+        {mins}:{secs.toString().padStart(2, '0')}
+      </Text>
+      {/* Simple progress bar */}
+      <View style={styles.restTimerBarBg}>
+        <View style={[styles.restTimerBarFill, { width: `${progress * 100}%` }]} />
+      </View>
+      <TouchableOpacity style={styles.restTimerSkipBtn} onPress={() => {
+        cancelRestTimerNotification();
+        onSkip();
+      }}>
+        <Ionicons name="play-skip-forward" size={16} color="#020617" />
+        <Text style={styles.restTimerSkipText}>Skip Rest</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -210,15 +402,88 @@ export default function EquipmentScannerScreen() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallScansUsed, setPaywallScansUsed] = useState<number>(SCAN_LIMIT.free);
   const [paywallDaysUntilReset, setPaywallDaysUntilReset] = useState<number>(0);
+  const [paywallContext, setPaywallContext] = useState<"scan_limit" | "voluntary" | "post_first_scan" | "multiscan_gate">("scan_limit");
 
   // User profile (for AI tailoring)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // Email capture
-  const [showEmailCapture, setShowEmailCapture] = useState(false);
+  // Workout companion state
+  const [exerciseSetLogs, setExerciseSetLogs] = useState<Record<number, SetLog[]>>({});
+  const [lastTimeLogs, setLastTimeLogs] = useState<Record<number, SetLog[] | undefined>>({});
+  const [weightUnit, setWeightUnitState] = useState<WeightUnit>('lbs');
+  const [restTimerSeconds, setRestTimerSeconds] = useState<number | null>(null);
+
+  // Debounced persistence of in-progress set logs — survives app-kill
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistSetLogs = useCallback((logs: Record<number, SetLog[]>) => {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      AsyncStorage.setItem(STORAGE_KEYS.inProgressSetLogs, JSON.stringify(logs)).catch(() => {});
+    }, 500);
+  }, []);
+
+  const persistWorkoutSession = useCallback((plan: WorkoutPlan) => {
+    AsyncStorage.setItem(STORAGE_KEYS.inProgressWorkout, JSON.stringify(plan)).catch(() => {});
+  }, []);
+
+  const clearPersistedSession = useCallback(() => {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    AsyncStorage.multiRemove([STORAGE_KEYS.inProgressSetLogs, STORAGE_KEYS.inProgressWorkout]).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadProfile().then((p) => { if (p) setUserProfile(p); }).catch(() => {});
+    getWeightUnit().then(setWeightUnitState).catch(() => {});
+    // Restore in-progress workout session if the app was killed mid-workout
+    const restoreSession = async () => {
+      try {
+        const [planRaw, logsRaw] = await AsyncStorage.multiGet([
+          STORAGE_KEYS.inProgressWorkout,
+          STORAGE_KEYS.inProgressSetLogs,
+        ]);
+        const plan = planRaw[1] ? JSON.parse(planRaw[1]) as WorkoutPlan : null;
+        const logs = logsRaw[1] ? JSON.parse(logsRaw[1]) as Record<number, SetLog[]> : null;
+        if (plan) {
+          setWorkoutPlan(plan);
+          if (logs) setExerciseSetLogs(logs);
+          setView("full-workout");
+        }
+      } catch {}
+    };
+    restoreSession();
+  }, []);
+
+  // Load "last time" data when a workout plan is generated
+  useEffect(() => {
+    if (!workoutPlan) return;
+    const loadLastTime = async () => {
+      const result: Record<number, SetLog[] | undefined> = {};
+      for (let i = 0; i < workoutPlan.exercises.length; i++) {
+        result[i] = await getLastSetLogs(workoutPlan.exercises[i].name);
+      }
+      setLastTimeLogs(result);
+    };
+    loadLastTime().catch(() => {});
+  }, [workoutPlan]);
+
+  const handleSetLogChange = useCallback((exerciseIndex: number, setNumber: number, field: 'weightLbs' | 'reps', value: number) => {
+    setExerciseSetLogs((prev) => {
+      const logs = [...(prev[exerciseIndex] ?? [])];
+      const existing = logs.findIndex((l) => l.setNumber === setNumber);
+      if (existing >= 0) {
+        logs[existing] = { ...logs[existing], [field]: value };
+      } else {
+        logs.push({ setNumber, weightLbs: field === 'weightLbs' ? value : 0, reps: field === 'reps' ? value : 0 });
+      }
+      const next = { ...prev, [exerciseIndex]: logs };
+      persistSetLogs(next);
+      return next;
+    });
+  }, [persistSetLogs]);
+
+  const handleStartRest = useCallback((seconds: number) => {
+    setRestTimerSeconds(seconds);
+    scheduleRestTimerNotification(seconds).catch(() => {});
   }, []);
 
   // Animated values
@@ -397,8 +662,41 @@ export default function EquipmentScannerScreen() {
       if (!isMounted.current) return;
       setCurrentResult(result);
       setView("single-result");
+      // Post-first-scan paywall trigger (soft nudge, max once per 7 days)
+      const firstScanFlag = await AsyncStorage.getItem(STORAGE_KEYS.firstScanDone);
+      if (!firstScanFlag) {
+        await AsyncStorage.setItem(STORAGE_KEYS.firstScanDone, "true");
+        trackEvent("first_scan_success", undefined, { equipment_type: result.equipment_type }).catch(() => {});
+      }
+      // Show paywall if user is not pro and we haven't auto-shown in the last 7 days
+      const isPro = await checkProEntitlement();
+      if (!isPro) {
+        const lastShown = await AsyncStorage.getItem(STORAGE_KEYS.paywallLastShown);
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+        const canShow = !lastShown || Date.now() - parseInt(lastShown, 10) > sevenDays;
+        if (canShow) {
+          setTimeout(() => {
+            if (!isMounted.current) return;
+            setPaywallContext("post_first_scan");
+            setShowPaywall(true);
+            AsyncStorage.setItem(STORAGE_KEYS.paywallLastShown, String(Date.now())).catch(() => {});
+          }, 1500);
+        }
+      }
     } catch (err) {
       if (!isMounted.current) return;
+
+      // Server-side scan limit hit
+      if (err instanceof ApiError && err.message === "SCAN_LIMIT") {
+        const data = err.data as { used?: number; limit?: number } | undefined;
+        setPaywallScansUsed(data?.used ?? SCAN_LIMIT.free);
+        setPaywallDaysUntilReset(0);
+        setPaywallContext("scan_limit");
+        setShowPaywall(true);
+        trackEvent("scan_limit_hit", undefined, { used: data?.used, limit: data?.limit }).catch(() => {});
+        return;
+      }
+
       let msg = "Network error. Check your internet connection and try again.";
       if (err instanceof ApiError) {
         msg =
@@ -416,8 +714,20 @@ export default function EquipmentScannerScreen() {
     }
   };
 
-  const handleAddToQueue = () => {
+  const handleAddToQueue = async () => {
     if (!currentResult) return;
+
+    // Multi-scan gate: adding 2nd+ item requires Pro
+    if (scannedItems.length >= 1) {
+      const isPro = await checkProEntitlement();
+      if (!isPro) {
+        setPaywallContext("multiscan_gate");
+        setShowPaywall(true);
+        trackEvent("multiscan_gate_hit").catch(() => {});
+        return;
+      }
+    }
+
     const item: ScannedItem = {
       id: makeId(),
       equipment_type: currentResult.equipment_type,
@@ -436,6 +746,24 @@ export default function EquipmentScannerScreen() {
   };
 
   const handleBuildWorkout = async () => {
+    // If there's an in-progress workout with logged sets, confirm before discarding
+    const hasLoggedSets = Object.values(exerciseSetLogs).some((logs) => logs.length > 0);
+    if (hasLoggedSets && workoutPlan) {
+      return new Promise<void>((resolve) => {
+        Alert.alert(
+          "Discard current workout?",
+          "You have logged sets that haven't been saved. Building a new workout will discard them.",
+          [
+            { text: "Cancel", style: "cancel", onPress: () => resolve() },
+            { text: "Discard", style: "destructive", onPress: () => { doBuildWorkout(); resolve(); } },
+          ]
+        );
+      });
+    }
+    return doBuildWorkout();
+  };
+
+  const doBuildWorkout = async () => {
     const items =
       view === "single-result" && currentResult
         ? [
@@ -458,22 +786,9 @@ export default function EquipmentScannerScreen() {
       const plan = await generateWorkout({ equipment_types, profile: userProfile ?? undefined });
       if (!isMounted.current) return;
       setWorkoutPlan(plan);
-      saveWorkoutToHistory(plan).then(async () => {
-        // Prompt for a store rating on the 3rd and 10th completed workout
-        try {
-          const { loadStats } = await import("../lib/workoutHistory");
-          const stats = await loadStats();
-          if (stats.totalWorkouts === 3 || stats.totalWorkouts === 10) {
-            const isAvailable = await StoreReview.isAvailableAsync();
-            if (isAvailable) StoreReview.requestReview();
-          }
-        } catch {}
-      }).catch(() => {});
-      schedulePostWorkoutNotifications().catch(() => {});
+      setExerciseSetLogs({}); // reset set logs for new workout
+      persistWorkoutSession(plan); // persist plan so session survives app-kill
       setView("full-workout");
-      shouldShowEmailCapture().then((show) => {
-        if (show && isMounted.current) setShowEmailCapture(true);
-      }).catch(() => {});
     } catch (err) {
       if (!isMounted.current) return;
       let msg = "Could not generate workout. Please try again.";
@@ -489,7 +804,46 @@ export default function EquipmentScannerScreen() {
     setCurrentResult(null);
     setCurrentPhotoUri(null);
     setWorkoutPlan(null);
+    setExerciseSetLogs({});
+    setLastTimeLogs({});
+    setRestTimerSeconds(null);
+    clearPersistedSession();
     setView("camera");
+  };
+
+  /** Called when "Finished Workout" is tapped — saves locally with set logs, then handles review prompt */
+  const handleFinishWorkout = async () => {
+    if (!workoutPlan) { handleReset(); router.push("/"); return; }
+
+    // Save workout with set logs — offline-first, never blocks UI
+    try {
+      await saveWorkoutToHistory(workoutPlan, exerciseSetLogs);
+      clearPersistedSession(); // session complete — clear in-progress cache
+    } catch {
+      // Data remains in AsyncStorage (workout + set logs) — will be restored on next open
+    }
+
+    // Post-workout notifications (fire-and-forget)
+    schedulePostWorkoutNotifications().catch(() => {});
+
+    // Review prompt: 2nd or 3rd completed workout, once ever
+    try {
+      const alreadyShown = await AsyncStorage.getItem(STORAGE_KEYS.reviewPromptShown);
+      if (!alreadyShown) {
+        const { loadStats } = await import("../lib/workoutHistory");
+        const stats = await loadStats();
+        if (stats.totalWorkouts >= 2 && stats.totalWorkouts <= 3) {
+          const isAvailable = await StoreReview.isAvailableAsync();
+          if (isAvailable) {
+            await AsyncStorage.setItem(STORAGE_KEYS.reviewPromptShown, 'true');
+            StoreReview.requestReview();
+          }
+        }
+      }
+    } catch {}
+
+    handleReset();
+    router.push("/");
   };
 
   // -------------------------------------------------------------------------
@@ -618,6 +972,17 @@ export default function EquipmentScannerScreen() {
                   {workoutPlan.exercises.length} exercises
                 </Text>
               </View>
+              {/* Weight unit toggle */}
+              <TouchableOpacity
+                onPress={() => {
+                  const next = weightUnit === 'lbs' ? 'kg' : 'lbs';
+                  setWeightUnitState(next);
+                  setWeightUnit(next).catch(() => {});
+                }}
+                style={styles.unitToggle}
+              >
+                <Text style={styles.unitToggleText}>{weightUnit}</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={handleReset} style={styles.sheetCloseBtn}>
                 <Ionicons name="close" size={22} color="#9ca3af" />
               </TouchableOpacity>
@@ -640,18 +1005,34 @@ export default function EquipmentScannerScreen() {
               <Text style={styles.noteText}>{workoutPlan.note}</Text>
             ) : null}
 
-            <Text style={styles.sectionTitle}>Exercises</Text>
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <Text style={styles.sectionTitle}>Log Your Sets</Text>
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {workoutPlan.exercises.map((ex, idx) => (
                 <View key={idx}>
                   <View style={styles.exerciseNumber}>
                     <Text style={styles.exerciseNumberText}>{idx + 1}</Text>
                   </View>
-                  <ExerciseCard ex={ex} />
+                  <WorkoutExerciseCard
+                    ex={ex}
+                    exerciseIndex={idx}
+                    setLogs={exerciseSetLogs[idx] ?? []}
+                    lastTimeLogs={lastTimeLogs[idx]}
+                    weightUnit={weightUnit}
+                    onSetLogChange={handleSetLogChange}
+                    onStartRest={handleStartRest}
+                  />
                 </View>
               ))}
               <View style={{ height: 16 }} />
             </ScrollView>
+
+            {/* Rest timer overlay */}
+            {restTimerSeconds !== null && (
+              <RestTimerOverlay
+                seconds={restTimerSeconds}
+                onSkip={() => setRestTimerSeconds(null)}
+              />
+            )}
 
             {/* Bottom action buttons */}
             <View style={styles.buttonRow}>
@@ -665,13 +1046,10 @@ export default function EquipmentScannerScreen() {
 
               <TouchableOpacity
                 style={[styles.primaryButton, { flex: 1, marginTop: 0 }]}
-                onPress={() => {
-                  handleReset();
-                  router.push("/");
-                }}
+                onPress={handleFinishWorkout}
               >
                 <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
-                <Text style={styles.primaryButtonText}>Finished Workout</Text>
+                <Text style={styles.primaryButtonText}>Finish Workout</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -802,16 +1180,13 @@ export default function EquipmentScannerScreen() {
         visible={showPaywall}
         scansUsed={paywallScansUsed}
         daysUntilReset={paywallDaysUntilReset}
+        entryContext={paywallContext}
         onClose={() => setShowPaywall(false)}
         onProActivated={() => {
           setShowPaywall(false);
           // Trigger scan immediately after upgrade
           handleCaptureAndAnalyze();
         }}
-      />
-      <EmailCaptureModal
-        visible={showEmailCapture}
-        onDismiss={() => setShowEmailCapture(false)}
       />
     </View>
   );
@@ -1057,4 +1432,103 @@ const styles = StyleSheet.create({
   },
   unknownTitle: { fontSize: 17, fontWeight: "700", color: "#ffffff", textAlign: "center", marginBottom: 10 },
   unknownBody: { fontSize: 13, color: "#9ca3af", textAlign: "center", lineHeight: 20 },
+
+  // Weight unit toggle
+  unitToggle: {
+    backgroundColor: "#1e293b",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 8,
+  },
+  unitToggleText: { color: COLORS.primary, fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
+
+  // Last-time banner
+  lastTimeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "#0f172a",
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  lastTimeText: { fontSize: 11, color: "#64748b" },
+
+  // Set logging
+  setHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    marginBottom: 4,
+  },
+  setHeaderLabel: { fontSize: 10, color: "#4b5563", fontWeight: "600", textTransform: "uppercase" },
+  setRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    marginBottom: 6,
+    gap: 8,
+  },
+  setNumberLabel: { fontSize: 13, color: "#64748b", fontWeight: "600", textAlign: "center" },
+  setInput: {
+    backgroundColor: "#0f172a",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    textAlign: "center",
+  },
+  restBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#1e293b",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Rest timer overlay
+  restTimerOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    top: 0,
+    backgroundColor: "rgba(2,8,23,0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+    gap: 12,
+  },
+  restTimerLabel: { fontSize: 16, color: "#9ca3af", fontWeight: "600", letterSpacing: 2, textTransform: "uppercase" },
+  restTimerTime: { fontSize: 64, color: "#ffffff", fontWeight: "700", fontVariant: ["tabular-nums"] },
+  restTimerBarBg: {
+    width: "60%",
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#1e293b",
+    overflow: "hidden",
+  },
+  restTimerBarFill: {
+    height: "100%",
+    backgroundColor: COLORS.primary,
+    borderRadius: 3,
+  },
+  restTimerSkipBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: COLORS.primary,
+  },
+  restTimerSkipText: { color: "#020617", fontSize: 14, fontWeight: "700" },
 });

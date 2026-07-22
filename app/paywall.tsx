@@ -1,7 +1,9 @@
 // app/paywall.tsx
-// Paywall modal — 3 screens: ScanLimitHit → PlanSelection → TrialConfirmed
+// Paywall modal — rebuilt on RevenueCat + Google Play Billing.
+// Prices from RevenueCat offerings (single source of truth).
+// All user-visible behavior gated behind MONETIZATION_ENABLED server flag.
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,459 +13,212 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useStripe } from "@stripe/stripe-react-native";
+import { PurchasesPackage } from "react-native-purchases";
 import { COLORS, SCAN_LIMIT } from "../lib/constants";
-import { activatePro, saveCustomerId } from "../lib/scanLimit";
-import { createSetupIntent, activateSubscription, type PlanId } from "../lib/api";
+import { activatePro } from "../lib/scanLimit";
+import {
+  getCurrentOffering,
+  purchasePackage,
+  restorePurchases,
+  isTrialEligible,
+} from "../lib/purchases";
+import { trackEvent } from "../lib/api";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+export type PaywallEntryContext =
+  | "scan_limit"
+  | "voluntary"
+  | "post_first_scan"
+  | "multiscan_gate";
+
 export type PaywallProps = {
   visible: boolean;
   scansUsed?: number;
   daysUntilReset?: number;
+  entryContext?: PaywallEntryContext;
+  quizSummary?: string;
   onClose: () => void;
   onProActivated: () => void;
 };
 
-type PaywallScreen = "limit" | "plans" | "confirmed";
-
-type Plan = {
-  id: "pro" | "annual";
-  name: string;
-  price: string;
-  monthlyEquiv?: string;
-  period: string;
-  badge?: string;
-  badgeColor?: string;
-  features: string[];
-};
-
 // ---------------------------------------------------------------------------
-// Plan data — 2 plans only (cleaner conversion, no choice paralysis)
+// Helpers
 // ---------------------------------------------------------------------------
 
-const PLANS: Plan[] = [
-  {
-    id: "pro",
-    name: "Pro",
-    price: "$9.99",
-    period: "/ month",
-    badge: "7-DAY FREE TRIAL",
-    badgeColor: "#38bdf8",
-    features: [
-      "Unlimited AI scans",
-      "Custom workout plans",
-      "Full workout history",
-      "Priority AI speed",
-    ],
-  },
-  {
-    id: "annual",
-    name: "Annual Pro",
-    price: "$79.99",
-    monthlyEquiv: "$6.67",
-    period: "/ year",
-    badge: "BEST VALUE · SAVE 33%",
-    badgeColor: "#22c55e",
-    features: [
-      "Unlimited AI scans",
-      "Custom workout plans",
-      "Full workout history",
-      "Priority AI speed",
-    ],
-  },
-];
+function getHeadline(context: PaywallEntryContext): string {
+  switch (context) {
+    case "scan_limit":
+      return "You've used all 10\nfree scans this month";
+    case "post_first_scan":
+      return "Unlock unlimited\nscans";
+    case "multiscan_gate":
+      return "Combine machines\ninto one workout";
+    default:
+      return "Unlock unlimited\nscans";
+  }
+}
+
+function getSubline(context: PaywallEntryContext): string {
+  switch (context) {
+    case "scan_limit":
+      return "Upgrade to keep scanning, or wait for your free scans to reset.";
+    case "post_first_scan":
+      return "Your first scan is free. Go Pro for unlimited scans and custom workouts.";
+    case "multiscan_gate":
+      return "Combine multiple machines into one complete workout plan with Pro.";
+    default:
+      return "Unlimited scans. Custom workout plans.";
+  }
+}
 
 const PRO_FEATURES = [
-  { icon: "∞", label: "Unlimited AI scans every month" },
-  { icon: "📋", label: "Custom workout plans from your scans" },
-  { icon: "📈", label: "Full workout history & progress tracking" },
-  { icon: "⚡", label: "Priority AI response speed" },
+  { icon: "infinite-outline" as const, label: "Unlimited equipment scans" },
+  { icon: "barbell-outline" as const, label: "Unlimited AI workouts" },
+  { icon: "heart-outline" as const, label: "Support a solo developer" },
 ];
 
 // ---------------------------------------------------------------------------
-// Screen 1 — Scan limit hit
-// ---------------------------------------------------------------------------
-
-function ScanLimitScreen({
-  scansUsed,
-  daysUntilReset,
-  onStartTrial,
-  onSeePlans,
-  onClose,
-}: {
-  scansUsed: number;
-  daysUntilReset: number;
-  onStartTrial: () => void;
-  onSeePlans: () => void;
-  onClose: () => void;
-}) {
-  const pct = Math.min(1, scansUsed / SCAN_LIMIT.free);
-
-  return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Close button */}
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-          <Ionicons name="close" size={22} color={COLORS.textMuted} />
-        </TouchableOpacity>
-
-        {/* Icon */}
-        <View style={styles.limitIconWrapper}>
-          <View style={styles.limitIconCircle}>
-            <Text style={styles.limitIconEmoji}>📷</Text>
-          </View>
-          <View style={styles.limitBadge}>
-            <Text style={styles.limitBadgeText}>!</Text>
-          </View>
-        </View>
-
-        <View style={styles.fitscanLabel}>
-          <Text style={styles.fitscanLabelText}>FITSCAN</Text>
-          <Text style={styles.fitscanSlogan}>FITNESS MADE SIMPLE</Text>
-        </View>
-
-        <Text style={styles.limitTitle}>Keep the{"\n"}momentum going</Text>
-        <Text style={styles.limitSubtitle}>
-          You've crushed all {SCAN_LIMIT.free} free scans this month.{"\n"}
-          Unlock unlimited scans and never slow down.
-        </Text>
-
-        {/* Progress bar */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${pct * 100}%` }]} />
-          </View>
-          <View style={styles.progressLabels}>
-            <Text style={styles.progressLeft}>
-              {scansUsed} / {SCAN_LIMIT.free} scans used
-            </Text>
-            <Text style={styles.progressRight}>Resets in {daysUntilReset} days</Text>
-          </View>
-        </View>
-
-        {/* Pro features card */}
-        <View style={styles.featuresCard}>
-          <Text style={styles.featuresCardLabel}>WITH PRO YOU GET</Text>
-          {PRO_FEATURES.map((f) => (
-            <View key={f.label} style={styles.featureRow}>
-              <Text style={styles.featureIcon}>{f.icon}</Text>
-              <Text style={styles.featureText}>{f.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* CTAs */}
-        <TouchableOpacity onPress={onStartTrial} activeOpacity={0.88} style={styles.ctaWrapper}>
-          <LinearGradient
-            colors={["#2563eb", "#38bdf8"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.ctaButton}
-          >
-            <Text style={styles.ctaButtonText}>START 7-DAY FREE TRIAL</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={onSeePlans} style={styles.seePlansBtn}>
-          <Text style={styles.seePlansText}>See all plans</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Screen 2 — Plan selection
-// ---------------------------------------------------------------------------
-
-function PlanSelectionScreen({
-  onBack,
-  onConfirm,
-}: {
-  onBack: () => void;
-  onConfirm: (plan: Plan) => void;
-}) {
-  const [selected, setSelected] = useState<Plan["id"]>("annual");
-  const [loading, setLoading] = useState(false);
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
-  const selectedPlan = PLANS.find((p) => p.id === selected)!;
-
-  async function handleSubscribe() {
-    setLoading(true);
-    try {
-      // 1. Create Stripe Customer + SetupIntent on the backend
-      const { clientSecret, customerId } = await createSetupIntent(selected as PlanId);
-
-      // 2. Initialise the PaymentSheet with the SetupIntent client secret
-      const { error: initError } = await initPaymentSheet({
-        setupIntentClientSecret: clientSecret,
-        merchantDisplayName: "FitScan",
-        style: "alwaysDark",
-        appearance: {
-          colors: {
-            primary: "#38bdf8",
-            background: "#0f172a",
-            componentBackground: "#1e293b",
-            componentBorder: "#334155",
-            componentDivider: "#334155",
-            primaryText: "#ffffff",
-            secondaryText: "#94a3b8",
-            componentText: "#ffffff",
-            placeholderText: "#64748b",
-            icon: "#94a3b8",
-          },
-        },
-      });
-      if (initError) {
-        Alert.alert("Payment error", initError.message);
-        return;
-      }
-
-      // 3. Present the PaymentSheet for the user to enter card details
-      const { error: presentError, paymentOption } = await presentPaymentSheet();
-      if (presentError) {
-        if (presentError.code !== "Canceled") {
-          Alert.alert("Payment error", presentError.message);
-        }
-        return;
-      }
-
-      // 4. Card saved — activate the subscription with trial on the backend
-      const paymentMethodId = paymentOption?.label ?? "";
-      await activateSubscription(customerId, paymentMethodId, selected as PlanId);
-
-      // 5. Mark pro locally and move to confirmed screen
-      await activatePro();
-      await saveCustomerId(customerId);
-      onConfirm(selectedPlan);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Something went wrong.";
-      Alert.alert("Could not start subscription", msg);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} disabled={loading}>
-          <Ionicons name="chevron-back" size={22} color={COLORS.textMuted} />
-        </TouchableOpacity>
-
-        <Text style={styles.plansTitle}>Choose your plan</Text>
-        <Text style={styles.plansSubtitle}>Start free, cancel anytime.</Text>
-
-        {PLANS.map((plan) => {
-          const isSelected = selected === plan.id;
-          return (
-            <TouchableOpacity
-              key={plan.id}
-              style={[styles.planCard, isSelected && styles.planCardSelected]}
-              onPress={() => setSelected(plan.id)}
-              activeOpacity={0.85}
-              disabled={loading}
-            >
-              {plan.badge && (
-                <View style={[styles.planBadge, { backgroundColor: plan.badgeColor ?? COLORS.primary }]}>
-                  <Text style={styles.planBadgeText}>{plan.badge}</Text>
-                </View>
-              )}
-              <View style={styles.planCardInner}>
-                <View style={styles.planCardLeft}>
-                  <View style={[styles.planRadio, isSelected && styles.planRadioSelected]}>
-                    {isSelected && <View style={styles.planRadioDot} />}
-                  </View>
-                  <View>
-                    <Text style={[styles.planName, isSelected && styles.planNameSelected]}>
-                      {plan.name}
-                    </Text>
-                    <Text style={styles.planFeatureList}>
-                      {plan.features.slice(0, 2).join(" · ")}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.planCardRight}>
-                  <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
-                    {plan.monthlyEquiv ?? plan.price}
-                  </Text>
-                  <Text style={styles.planPeriod}>
-                    {plan.monthlyEquiv ? "/ month" : plan.period}
-                  </Text>
-                  {plan.monthlyEquiv && (
-                    <Text style={styles.planBilledAs}>billed {plan.price}/yr</Text>
-                  )}
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-
-        {/* CTA */}
-        <TouchableOpacity
-          onPress={handleSubscribe}
-          activeOpacity={0.88}
-          disabled={loading}
-          style={[styles.ctaWrapper, { marginTop: 24 }]}
-        >
-          <LinearGradient
-            colors={["#2563eb", "#38bdf8"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.ctaButton}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.ctaButtonText}>
-                {selected === "annual"
-                  ? `GET ANNUAL PRO — Just $6.67/mo`
-                  : `START FREE TRIAL — Then $9.99/mo`}
-              </Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <Text style={styles.finePrint}>
-          {selected === "annual"
-            ? `Billed as $79.99/year ($6.67/mo). Cancel anytime.`
-            : `Free 7-day trial — no charge until Day 7. Cancel anytime.`}
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Screen 3 — Trial confirmed
-// ---------------------------------------------------------------------------
-
-function TrialConfirmedScreen({
-  plan,
-  onStartScanning,
-}: {
-  plan: Plan;
-  onStartScanning: () => void;
-}) {
-  return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.confirmedContent}>
-        {/* Celebration icon */}
-        <Text style={styles.confirmedEmoji}>🎉</Text>
-        <Text style={styles.confirmedTitle}>You're all set!</Text>
-        <Text style={styles.confirmedSubtitle}>
-          {plan.id === "annual"
-            ? `Annual Pro is active. You're locked in\nat just $6.67/mo — enjoy unlimited scans.`
-            : `Your 7-day free trial has started.\nNo charge until Day 7.`}
-        </Text>
-
-        {/* Timeline — different for annual vs monthly trial */}
-        <View style={styles.timeline}>
-          {plan.id === "annual" ? (
-            <>
-              <View style={styles.timelineStep}>
-                <View style={[styles.timelineDot, styles.timelineDotActive]} />
-                <View style={styles.timelineStepText}>
-                  <Text style={styles.timelineLabel}>Today</Text>
-                  <Text style={styles.timelineDesc}>Annual Pro active · Unlimited scans</Text>
-                </View>
-              </View>
-              <View style={styles.timelineLine} />
-              <View style={styles.timelineStep}>
-                <View style={styles.timelineDot} />
-                <View style={styles.timelineStepText}>
-                  <Text style={styles.timelineLabel}>In 1 year</Text>
-                  <Text style={styles.timelineDesc}>Renews at $79.99 · Cancel anytime</Text>
-                </View>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.timelineStep}>
-                <View style={[styles.timelineDot, styles.timelineDotActive]} />
-                <View style={styles.timelineStepText}>
-                  <Text style={styles.timelineLabel}>Today</Text>
-                  <Text style={styles.timelineDesc}>Trial starts · Full Pro access</Text>
-                </View>
-              </View>
-              <View style={styles.timelineLine} />
-              <View style={styles.timelineStep}>
-                <View style={styles.timelineDot} />
-                <View style={styles.timelineStepText}>
-                  <Text style={styles.timelineLabel}>Day 7</Text>
-                  <Text style={styles.timelineDesc}>$9.99/month begins</Text>
-                </View>
-              </View>
-              <View style={styles.timelineLine} />
-              <View style={styles.timelineStep}>
-                <View style={styles.timelineDot} />
-                <View style={styles.timelineStepText}>
-                  <Text style={styles.timelineLabel}>Cancel anytime</Text>
-                  <Text style={styles.timelineDesc}>No questions asked</Text>
-                </View>
-              </View>
-            </>
-          )}
-        </View>
-
-        <TouchableOpacity onPress={onStartScanning} activeOpacity={0.88} style={styles.ctaWrapper}>
-          <LinearGradient
-            colors={["#2563eb", "#38bdf8"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.ctaButton}
-          >
-            <Ionicons name="camera" size={18} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.ctaButtonText}>START SCANNING</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Root export — Paywall modal
+// Component
 // ---------------------------------------------------------------------------
 
 export default function Paywall({
   visible,
   scansUsed = SCAN_LIMIT.free,
   daysUntilReset = 0,
+  entryContext = "voluntary",
+  quizSummary,
   onClose,
   onProActivated,
 }: PaywallProps) {
-  const [screen, setScreen] = useState<PaywallScreen>("limit");
-  const [confirmedPlan, setConfirmedPlan] = useState<Plan | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [trialEligible, setTrialEligible] = useState(true);
+  const [loadingOfferings, setLoadingOfferings] = useState(true);
 
-  // activatePro() is already called inside PlanSelectionScreen after payment succeeds
-  function handleConfirm(plan: Plan) {
-    setConfirmedPlan(plan);
-    setScreen("confirmed");
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoadingOfferings(true);
+      try {
+        const [offering, eligible] = await Promise.all([
+          getCurrentOffering(),
+          isTrialEligible(),
+        ]);
+        if (cancelled) return;
+
+        if (offering?.availablePackages) {
+          // Sort: annual first
+          const sorted = [...offering.availablePackages].sort((a, b) => {
+            if (a.packageType === "ANNUAL") return -1;
+            if (b.packageType === "ANNUAL") return 1;
+            return 0;
+          });
+          setPackages(sorted);
+          setSelectedIdx(0); // Annual preselected
+        }
+        setTrialEligible(eligible);
+      } catch {
+        // Fail open — show paywall with no packages
+      } finally {
+        if (!cancelled) setLoadingOfferings(false);
+      }
+
+      trackEvent("paywall_viewed", undefined, { context: entryContext }).catch(() => {});
+    })();
+
+    return () => { cancelled = true; };
+  }, [visible]);
+
+  async function handlePurchase() {
+    if (packages.length === 0) return;
+    setLoading(true);
+    try {
+      const pkg = packages[selectedIdx];
+      const success = await purchasePackage(pkg);
+      if (success) {
+        await activatePro();
+        trackEvent(
+          trialEligible ? "trial_started" : "subscription_activated",
+          undefined,
+          { plan: pkg.identifier }
+        ).catch(() => {});
+        onProActivated();
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Something went wrong.";
+      Alert.alert("Could not complete purchase", msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleStartScanning() {
-    onProActivated();
+  async function handleRestore() {
+    setRestoring(true);
+    try {
+      const restored = await restorePurchases();
+      if (restored) {
+        await activatePro();
+        Alert.alert("Restored!", "Your Pro subscription has been restored.");
+        onProActivated();
+      } else {
+        Alert.alert("No purchases found", "We couldn't find any previous purchases.");
+      }
+    } finally {
+      setRestoring(false);
+    }
   }
 
-  function handleClose() {
-    // Reset to first screen for next open
-    setScreen("limit");
+  function handleDismiss() {
+    trackEvent("paywall_dismissed_to_free", undefined, { context: entryContext }).catch(() => {});
     onClose();
+  }
+
+  if (!visible) return null;
+
+  // Format price from RevenueCat package
+  function formatPrice(pkg: PurchasesPackage): string {
+    return pkg.product.priceString || pkg.product.price.toString();
+  }
+
+  function formatPeriod(pkg: PurchasesPackage): string {
+    if (pkg.packageType === "ANNUAL") return "/ year";
+    return "/ month";
+  }
+
+  function getMonthlyEquiv(pkg: PurchasesPackage): string | null {
+    if (pkg.packageType !== "ANNUAL") return null;
+    const monthly = pkg.product.price / 12;
+    return `$${monthly.toFixed(2)}`;
+  }
+
+  function getCtaText(): string {
+    if (trialEligible) return "START 7-DAY FREE TRIAL";
+    if (packages[selectedIdx]?.packageType === "ANNUAL") return "GET ANNUAL PRO";
+    return "GET PRO";
+  }
+
+  function getSubLineText(): string {
+    const pkg = packages[selectedIdx];
+    if (!pkg) return "";
+    const price = formatPrice(pkg);
+    const period = pkg.packageType === "ANNUAL" ? "year" : "month";
+    const monthlyNote = pkg.packageType === "ANNUAL" ? ` (${getMonthlyEquiv(pkg)}/mo)` : "";
+    if (trialEligible) {
+      return `7 days free, then ${price}/${period}${monthlyNote}. Cancel anytime.`;
+    }
+    return `${price}/${period}${monthlyNote}. Cancel anytime.`;
   }
 
   return (
@@ -471,30 +226,179 @@ export default function Paywall({
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={handleClose}
+      onRequestClose={handleDismiss}
     >
       <View style={styles.modalRoot}>
-        {screen === "limit" && (
-          <ScanLimitScreen
-            scansUsed={scansUsed}
-            daysUntilReset={daysUntilReset}
-            onStartTrial={() => setScreen("plans")}
-            onSeePlans={() => setScreen("plans")}
-            onClose={handleClose}
-          />
-        )}
-        {screen === "plans" && (
-          <PlanSelectionScreen
-            onBack={() => setScreen("limit")}
-            onConfirm={handleConfirm}
-          />
-        )}
-        {screen === "confirmed" && confirmedPlan && (
-          <TrialConfirmedScreen
-            plan={confirmedPlan}
-            onStartScanning={handleStartScanning}
-          />
-        )}
+        <SafeAreaView style={styles.screen}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Close */}
+            <TouchableOpacity style={styles.closeBtn} onPress={handleDismiss}>
+              <Ionicons name="close" size={22} color={COLORS.textMuted} />
+            </TouchableOpacity>
+
+            {/* Logo */}
+            <View style={styles.logoRow}>
+              <Text style={styles.logoLabel}>FITSCAN</Text>
+              <Text style={styles.logoSlogan}>FITNESS MADE SIMPLE</Text>
+            </View>
+
+            {/* Headline */}
+            <Text style={styles.headline}>{getHeadline(entryContext)}</Text>
+            <Text style={styles.subheadline}>{getSubline(entryContext)}</Text>
+
+            {/* Quiz personalization line */}
+            {quizSummary && entryContext === "post_first_scan" && (
+              <View style={styles.quizLine}>
+                <Ionicons name="sparkles" size={16} color={COLORS.primary} />
+                <Text style={styles.quizLineText}>{quizSummary}</Text>
+              </View>
+            )}
+
+            {/* Scan progress — only on scan_limit context */}
+            {entryContext === "scan_limit" && (
+              <View style={styles.progressContainer}>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: "100%" }]} />
+                </View>
+                <View style={styles.progressLabels}>
+                  <Text style={styles.progressLeft}>
+                    {scansUsed} / {SCAN_LIMIT.free} scans used
+                  </Text>
+                  <Text style={styles.progressRight}>
+                    Resets in {daysUntilReset} days
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Features */}
+            <View style={styles.featuresCard}>
+              <Text style={styles.featuresLabel}>WITH PRO YOU GET</Text>
+              {PRO_FEATURES.map((f) => (
+                <View key={f.label} style={styles.featureRow}>
+                  <Ionicons name={f.icon} size={20} color={COLORS.primary} />
+                  <Text style={styles.featureText}>{f.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Plan cards */}
+            {loadingOfferings ? (
+              <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 20 }} />
+            ) : (
+              packages.map((pkg, idx) => {
+                const isSelected = idx === selectedIdx;
+                const isAnnual = pkg.packageType === "ANNUAL";
+                const monthlyEquiv = getMonthlyEquiv(pkg);
+                return (
+                  <TouchableOpacity
+                    key={pkg.identifier}
+                    style={[styles.planCard, isSelected && styles.planCardSelected]}
+                    onPress={() => setSelectedIdx(idx)}
+                    activeOpacity={0.85}
+                    disabled={loading}
+                  >
+                    {isAnnual && (
+                      <View style={styles.planBadge}>
+                        <Text style={styles.planBadgeText}>BEST VALUE {"\u00B7"} SAVE 33%</Text>
+                      </View>
+                    )}
+                    {trialEligible && !isAnnual && (
+                      <View style={[styles.planBadge, { backgroundColor: COLORS.primary }]}>
+                        <Text style={styles.planBadgeText}>7-DAY FREE TRIAL</Text>
+                      </View>
+                    )}
+                    {trialEligible && isAnnual && (
+                      <View style={[styles.planBadge, { backgroundColor: "#22c55e" }]}>
+                        <Text style={styles.planBadgeText}>BEST VALUE {"\u00B7"} 7-DAY FREE TRIAL</Text>
+                      </View>
+                    )}
+                    <View style={styles.planCardInner}>
+                      <View style={styles.planCardLeft}>
+                        <View style={[styles.planRadio, isSelected && styles.planRadioSelected]}>
+                          {isSelected && <View style={styles.planRadioDot} />}
+                        </View>
+                        <View>
+                          <Text style={[styles.planName, isSelected && styles.planNameSelected]}>
+                            {isAnnual ? "Annual Pro" : "Pro"}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.planCardRight}>
+                        <Text style={[styles.planPrice, isSelected && styles.planPriceSelected]}>
+                          {monthlyEquiv ?? formatPrice(pkg)}
+                        </Text>
+                        <Text style={styles.planPeriod}>
+                          {monthlyEquiv ? "/ month" : formatPeriod(pkg)}
+                        </Text>
+                        {monthlyEquiv && (
+                          <Text style={styles.planBilledAs}>
+                            billed {formatPrice(pkg)}/yr
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
+            {/* CTA */}
+            <TouchableOpacity
+              onPress={handlePurchase}
+              activeOpacity={0.88}
+              disabled={loading || packages.length === 0}
+              style={[styles.ctaWrapper, { marginTop: 24 }]}
+            >
+              <LinearGradient
+                colors={["#2563eb", "#38bdf8"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.ctaButton}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.ctaButtonText}>{getCtaText()}</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <Text style={styles.finePrint}>{getSubLineText()}</Text>
+
+            {/* Dismiss link — always visible */}
+            <TouchableOpacity onPress={handleDismiss} style={styles.dismissBtn}>
+              <Text style={styles.dismissText}>
+                Continue with free ({SCAN_LIMIT.free} scans/month)
+              </Text>
+            </TouchableOpacity>
+
+            {/* Restore purchases */}
+            <TouchableOpacity
+              onPress={handleRestore}
+              disabled={restoring}
+              style={styles.restoreBtn}
+            >
+              <Text style={styles.restoreText}>
+                {restoring ? "Restoring..." : "Restore purchases"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Terms + Privacy */}
+            <View style={styles.legalRow}>
+              <TouchableOpacity onPress={() => Linking.openURL("https://fitscanfitness.com/terms")}>
+                <Text style={styles.legalText}>Terms</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDot}>{"\u00B7"}</Text>
+              <TouchableOpacity onPress={() => Linking.openURL("https://fitscanfitness.com/privacy")}>
+                <Text style={styles.legalText}>Privacy</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
       </View>
     </Modal>
   );
@@ -509,56 +413,21 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#060d1a" },
   scrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
 
-  // Close / back
   closeBtn: {
     alignSelf: "flex-end",
     padding: 8,
     marginBottom: 12,
   },
-  backBtn: {
-    alignSelf: "flex-start",
-    padding: 8,
-    marginBottom: 12,
-  },
 
-  // ── Screen 1 ──────────────────────────────────────────
-  limitIconWrapper: {
-    alignSelf: "center",
-    marginBottom: 8,
-  },
-  limitIconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "rgba(56,189,248,0.12)",
-    borderWidth: 1.5,
-    borderColor: "rgba(56,189,248,0.3)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  limitIconEmoji: { fontSize: 38 },
-  limitBadge: {
-    position: "absolute",
-    top: 0,
-    right: -4,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  limitBadgeText: { color: "#020617", fontSize: 14, fontWeight: "800" },
-
-  fitscanLabel: { alignSelf: "center", marginTop: 8, marginBottom: 16 },
-  fitscanLabelText: {
+  logoRow: { alignSelf: "center", marginBottom: 20 },
+  logoLabel: {
     fontSize: 11,
     fontWeight: "700",
     color: COLORS.textMuted,
     letterSpacing: 3,
     textAlign: "center",
   },
-  fitscanSlogan: {
+  logoSlogan: {
     fontSize: 9,
     fontWeight: "600",
     color: COLORS.primary,
@@ -568,7 +437,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
 
-  limitTitle: {
+  headline: {
     fontSize: 28,
     fontWeight: "800",
     color: "#fff",
@@ -576,12 +445,29 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     marginBottom: 12,
   },
-  limitSubtitle: {
+  subheadline: {
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: 24,
+  },
+
+  quizLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(56,189,248,0.08)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 20,
+    alignSelf: "center",
+  },
+  quizLineText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: "600",
   },
 
   progressContainer: { marginBottom: 24 },
@@ -595,7 +481,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: "100%",
     borderRadius: 4,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.error,
   },
   progressLabels: { flexDirection: "row", justifyContent: "space-between" },
   progressLeft: { fontSize: 12, color: COLORS.textMuted },
@@ -605,11 +491,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#0f172a",
     borderRadius: 16,
     padding: 20,
-    marginBottom: 28,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: "#1e293b",
   },
-  featuresCardLabel: {
+  featuresLabel: {
     fontSize: 10,
     fontWeight: "700",
     color: COLORS.textMuted,
@@ -622,41 +508,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 12,
   },
-  featureIcon: { fontSize: 18, width: 24, textAlign: "center" },
   featureText: { fontSize: 14, color: "#e2e8f0", fontWeight: "500", flex: 1 },
 
-  // ── CTA shared ───────────────────────────────────────
-  ctaWrapper: { borderRadius: 14, overflow: "hidden", marginBottom: 12 },
-  ctaButton: {
-    paddingVertical: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-  },
-  ctaButtonText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 0.8,
-  },
-
-  seePlansBtn: { alignItems: "center", paddingVertical: 10 },
-  seePlansText: { fontSize: 14, fontWeight: "600", color: COLORS.primary },
-
-  // ── Screen 2 ──────────────────────────────────────────
-  plansTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  plansSubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 28,
-  },
-
+  // Plan cards
   planCard: {
     backgroundColor: "#0f172a",
     borderRadius: 16,
@@ -676,8 +530,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginLeft: 16,
     marginTop: 12,
+    backgroundColor: "#22c55e",
   },
-  planBadgeText: { fontSize: 10, fontWeight: "800", color: "#020617", letterSpacing: 0.5 },
+  planBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#020617",
+    letterSpacing: 0.5,
+  },
   planCardInner: {
     flexDirection: "row",
     alignItems: "center",
@@ -703,72 +563,71 @@ const styles = StyleSheet.create({
   },
   planName: { fontSize: 16, fontWeight: "700", color: COLORS.textSecondary },
   planNameSelected: { color: "#fff" },
-  planFeatureList: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   planCardRight: { alignItems: "flex-end" },
   planPrice: { fontSize: 20, fontWeight: "800", color: COLORS.textSecondary },
   planPriceSelected: { color: COLORS.primary },
   planPeriod: { fontSize: 11, color: COLORS.textMuted },
   planBilledAs: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
 
-  reminderText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    marginTop: 10,
+  // CTA
+  ctaWrapper: { borderRadius: 14, overflow: "hidden", marginBottom: 12 },
+  ctaButton: {
+    paddingVertical: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
   },
+  ctaButtonText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.8,
+  },
+
   finePrint: {
     fontSize: 12,
     color: COLORS.textMuted,
     textAlign: "center",
     lineHeight: 17,
+    marginBottom: 16,
+  },
+
+  dismissBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  dismissText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.primary,
+    textDecorationLine: "underline",
+  },
+
+  restoreBtn: {
+    alignItems: "center",
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  restoreText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+  },
+
+  legalRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
     marginTop: 4,
   },
-
-  // ── Screen 3 ──────────────────────────────────────────
-  confirmedContent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-    paddingBottom: 40,
+  legalText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textDecorationLine: "underline",
   },
-  confirmedEmoji: { fontSize: 56, marginBottom: 20 },
-  confirmedTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 10,
+  legalDot: {
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
-  confirmedSubtitle: {
-    fontSize: 15,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 36,
-  },
-
-  timeline: { width: "100%", marginBottom: 40 },
-  timelineStep: { flexDirection: "row", alignItems: "flex-start", gap: 16 },
-  timelineDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#1e293b",
-    borderWidth: 2,
-    borderColor: "#334155",
-    marginTop: 2,
-  },
-  timelineDotActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  timelineLine: {
-    width: 2,
-    height: 24,
-    backgroundColor: "#1e293b",
-    marginLeft: 6,
-  },
-  timelineStepText: { flex: 1 },
-  timelineLabel: { fontSize: 14, fontWeight: "700", color: "#fff" },
-  timelineDesc: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
 });
