@@ -3,13 +3,16 @@ import React, { useRef, useEffect, useState } from "react";
 import { View, TouchableOpacity, StyleSheet, Text, Animated, Image } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { OfflineNotice } from "../components/OfflineNotice";
-import { COLORS } from "../lib/constants";
+import { COLORS, STORAGE_KEYS } from "../lib/constants";
+import { profileExists } from "../lib/profileStorage";
 import { registerForPushNotifications } from "../lib/notifications";
 import { initPurchases } from "../lib/purchases";
+import QuizScreen from "./quiz";
 
 // Keep the native splash hidden until our custom one is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -207,11 +210,25 @@ const tabStyles = StyleSheet.create({
 // ---------------------------------------------------------------------------
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
+  const [needsQuiz, setNeedsQuiz] = useState<boolean | null>(null); // null = loading
 
   useEffect(() => {
     registerForPushNotifications().catch(() => {});
     initPurchases().catch(() => {});
+
+    // Check if the user is new (no profile AND quiz not completed)
+    const checkNewUser = async () => {
+      const [hasProfile, quizFlag] = await Promise.all([
+        profileExists(),
+        AsyncStorage.getItem(STORAGE_KEYS.quizCompleted),
+      ]);
+      setNeedsQuiz(!hasProfile && quizFlag !== "true");
+    };
+    checkNewUser().catch(() => setNeedsQuiz(false));
   }, []);
+
+  // Quiz completed callback — dismiss quiz, show main app
+  const handleQuizDone = () => setNeedsQuiz(false);
 
   return (
     <SafeAreaProvider>
@@ -287,6 +304,13 @@ export default function RootLayout() {
           <Tabs.Screen name="paywall" options={{ href: null }} />
           <Tabs.Screen name="quiz" options={{ href: null }} />
         </Tabs>
+
+        {/* Full-screen quiz gate for new users — blocks main app until complete */}
+        {splashDone && needsQuiz && (
+          <View style={StyleSheet.absoluteFill}>
+            <QuizScreen onComplete={handleQuizDone} />
+          </View>
+        )}
 
         {/* Custom splash overlay — rendered on top of tabs, removed when done */}
         {!splashDone && (

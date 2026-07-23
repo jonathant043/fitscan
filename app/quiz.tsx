@@ -107,7 +107,7 @@ const QUESTIONS: QuizQuestion[] = [
 // Component
 // ---------------------------------------------------------------------------
 
-export default function QuizScreen() {
+export default function QuizScreen({ onComplete }: { onComplete?: () => void } = {}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
@@ -229,7 +229,12 @@ export default function QuizScreen() {
       console.warn("Quiz save error", e);
     }
 
-    router.replace("/");
+    // If rendered as a gate (onComplete prop), dismiss the overlay; otherwise navigate
+    if (onComplete) {
+      onComplete();
+    } else {
+      router.replace("/");
+    }
   }
 
   // Check if current multi-select question has selections for the "Next" button

@@ -87,11 +87,6 @@ export default function HomeScreen() {
         setNudge(getSmartNudge(h));
         setQuizDone(quizFlag === "true");
         setProfileLoaded(true);
-
-        // New user with no profile and no quiz → redirect to quiz
-        if (!p?.name && quizFlag !== "true") {
-          router.replace("/quiz");
-        }
       })();
       return () => { active = false; };
     }, [])

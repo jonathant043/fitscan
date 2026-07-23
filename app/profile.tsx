@@ -22,8 +22,10 @@ import {
   UserProfile,
 } from "../lib/profileStorage";
 import { getSubscriptionStatus } from "../lib/scanLimit";
-import { restorePurchases } from "../lib/purchases";
+import { restorePurchases, checkProEntitlement } from "../lib/purchases";
 import { deleteMyData } from "../lib/api";
+import { clearHistory } from "../lib/workoutHistory";
+import { STORAGE_KEYS } from "../lib/constants";
 import Paywall from "./paywall";
 
 const EXPERIENCE_LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
@@ -399,19 +401,49 @@ export default function ProfileScreen() {
           onPress={() => {
             Alert.alert(
               "Delete my data",
-              "This will permanently delete your scan history, workout history, and analytics from our servers. Your local profile and settings will remain on this device.\n\nPurchase and subscription records are retained by Google Play and RevenueCat as required by law.\n\nThis cannot be undone.",
+              "This will permanently delete all your data — server-side records AND local workout history, profile, and settings.\n\nPurchase and subscription records are retained by Google Play and RevenueCat as required by law.\n\nThis cannot be undone.",
               [
                 { text: "Cancel", style: "cancel" },
                 {
-                  text: "Delete",
+                  text: "Delete everything",
                   style: "destructive",
                   onPress: async () => {
                     try {
+                      // 1. Delete server-side data
                       const result = await deleteMyData();
                       const total = Object.values(result.deleted).reduce((a, b) => a + b, 0);
+
+                      // 2. Preserve Pro status before wiping local data
+                      const stillPro = await checkProEntitlement();
+
+                      // 3. Clear all local data EXCEPT deviceId and Pro entitlement
+                      await clearProfile();
+                      await clearHistory();
+                      await AsyncStorage.multiRemove([
+                        STORAGE_KEYS.quizCompleted,
+                        STORAGE_KEYS.scanLimit,
+                        STORAGE_KEYS.weightUnit,
+                        STORAGE_KEYS.inProgressSetLogs,
+                        STORAGE_KEYS.inProgressWorkout,
+                        STORAGE_KEYS.favorites,
+                        STORAGE_KEYS.reviewPromptShown,
+                        STORAGE_KEYS.paywallLastShown,
+                        STORAGE_KEYS.paywallAutoShown,
+                        STORAGE_KEYS.firstScanDone,
+                      ]);
+
+                      // 4. Restore Pro cache if subscriber (purchases are retained)
+                      if (stillPro) {
+                        await AsyncStorage.setItem(
+                          STORAGE_KEYS.scanLimit,
+                          JSON.stringify({ scansUsed: 0, periodStart: new Date().toISOString().slice(0, 7), isPro: true, proActivatedAt: Date.now() })
+                        );
+                      }
+
                       Alert.alert(
                         "Data deleted",
-                        `${total} record${total !== 1 ? "s" : ""} removed from our servers.`
+                        `${total} server record${total !== 1 ? "s" : ""} removed. Local data cleared.\n\nYou'll be taken through setup again.`,
+                        [{ text: "OK", onPress: () => router.replace("/quiz") }]
                       );
                     } catch {
                       Alert.alert("Error", "Could not delete data. Please check your connection and try again.");

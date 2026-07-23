@@ -10,6 +10,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   loadHistory,
   computeStats,
@@ -18,7 +20,8 @@ import {
   HistoryEntry,
   CANONICAL_MUSCLES,
 } from "../lib/workoutHistory";
-import { COLORS } from "../lib/constants";
+import { COLORS, STORAGE_KEYS } from "../lib/constants";
+import type { WorkoutPlan, WorkoutExercise } from "../lib/api";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -79,7 +82,7 @@ function recencyLabel(days: number | null): string {
 // Workout card with expandable exercise list
 // ---------------------------------------------------------------------------
 
-function WorkoutCard({ entry }: { entry: HistoryEntry }) {
+function WorkoutCard({ entry, onRepeat }: { entry: HistoryEntry; onRepeat: (entry: HistoryEntry) => void }) {
   const [expanded, setExpanded] = useState(false);
   const exercises = entry.exercises ?? [];
 
@@ -130,9 +133,25 @@ function WorkoutCard({ entry }: { entry: HistoryEntry }) {
                   <Text style={styles.exerciseDetail}>
                     {ex.sets} sets · {ex.reps}
                   </Text>
+                  {/* Show logged weights if available */}
+                  {ex.setLogs && ex.setLogs.length > 0 && (
+                    <Text style={styles.exerciseDetail}>
+                      Logged: {ex.setLogs.map((l) => `${l.weightLbs}lbs×${l.reps}`).join(", ")}
+                    </Text>
+                  )}
                 </View>
               </View>
             ))}
+
+            {/* Repeat workout button */}
+            <TouchableOpacity
+              style={styles.repeatBtn}
+              onPress={() => onRepeat(entry)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh-outline" size={16} color="#020617" />
+              <Text style={styles.repeatBtnText}>Repeat workout</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -150,9 +169,39 @@ function WorkoutCard({ entry }: { entry: HistoryEntry }) {
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [muscleActivity, setMuscleActivity] = useState<Record<string, number | null>>({});
   const [nudge, setNudge] = useState<string | null>(null);
+
+  /** Convert a HistoryEntry back into a WorkoutPlan and load it as an active session */
+  const handleRepeat = async (entry: HistoryEntry) => {
+    const exercises: WorkoutExercise[] = (entry.exercises ?? []).map((ex) => ({
+      name: ex.name,
+      sets: ex.sets,
+      reps: ex.reps,
+      intensity: "Intermediate",
+      muscleGroups: ex.muscleGroups ?? [],
+      description: ex.description ?? "",
+      equipment: entry.equipment_used?.[0] ?? "",
+      rest_seconds: 60,
+    }));
+
+    const plan: WorkoutPlan = {
+      workout_title: entry.workout_title,
+      workout_description: "",
+      equipment_used: entry.equipment_used ?? [],
+      estimated_duration_minutes: entry.estimated_duration_minutes,
+      exercises,
+      ai_used: false,
+      from: "fallback",
+    };
+
+    // Write to the in-progress session keys — equipment-scanner will pick them up
+    await AsyncStorage.setItem(STORAGE_KEYS.inProgressWorkout, JSON.stringify(plan));
+    await AsyncStorage.removeItem(STORAGE_KEYS.inProgressSetLogs); // fresh set logs
+    router.push("/equipment-scanner");
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -256,7 +305,7 @@ export default function HistoryScreen() {
               <View key={date}>
                 <Text style={styles.dateHeader}>{formatDate(date)}</Text>
                 {entries.map((entry) => (
-                  <WorkoutCard key={entry.id} entry={entry} />
+                  <WorkoutCard key={entry.id} entry={entry} onRepeat={handleRepeat} />
                 ))}
               </View>
             ))}
@@ -418,6 +467,22 @@ const styles = StyleSheet.create({
   exerciseName: { fontSize: 14, fontWeight: "600", color: "#e2e8f0" },
   exerciseDetail: { fontSize: 12, color: "#475569", marginTop: 1 },
   noExercises: { fontSize: 12, color: "#334155", marginTop: 12, fontStyle: "italic" },
+
+  repeatBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  repeatBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#020617",
+  },
 
   emptyState: { alignItems: "center", paddingTop: 40, paddingBottom: 20 },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: "#334155", marginTop: 16 },
