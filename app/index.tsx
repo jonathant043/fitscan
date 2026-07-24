@@ -255,14 +255,9 @@ export default function HomeScreen() {
             {recentHistory.map((entry) => {
               const equipmentName = entry.equipment_used?.[0] ?? entry.workout_title;
               return (
-                <TouchableOpacity
-                  key={entry.id}
-                  style={styles.scanCard}
-                  onPress={() => handleRepeat(entry)}
-                  activeOpacity={0.8}
-                >
+                <View key={entry.id} style={styles.scanCard}>
                   <View style={styles.scanCardIconBox}>
-                    <Ionicons name="refresh-outline" size={20} color={COLORS.primary} />
+                    <Ionicons name="barbell-outline" size={20} color={COLORS.primary} />
                   </View>
                   <View style={styles.scanCardBody}>
                     <Text style={styles.scanCardTitle}>{equipmentName}</Text>
@@ -270,11 +265,16 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.scanCardRight}>
                     <Text style={styles.scanCardTime}>{timeAgo(entry.timestamp)}</Text>
-                    <View style={styles.setsBadge}>
-                      <Text style={styles.setsBadgeText}>{entry.exercise_count} exercises</Text>
-                    </View>
+                    <TouchableOpacity
+                      style={styles.repeatBadge}
+                      onPress={() => handleRepeat(entry)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="refresh-outline" size={12} color={COLORS.primary} />
+                      <Text style={styles.repeatBadgeText}>Repeat</Text>
+                    </TouchableOpacity>
                   </View>
-                </TouchableOpacity>
+                </View>
               );
             })}
           </View>
@@ -448,6 +448,16 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   setsBadgeText: { fontSize: 12, fontWeight: "600", color: "#94a3b8" },
+  repeatBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(56,189,248,0.12)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  repeatBadgeText: { fontSize: 12, fontWeight: "600", color: COLORS.primary },
 
   nudgeCard: {
     flexDirection: "row",
