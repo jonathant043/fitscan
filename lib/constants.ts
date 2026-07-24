@@ -117,8 +117,8 @@ export const API_CONFIG = {
  * Image compression settings
  */
 export const IMAGE_CONFIG = {
-  quality: 0.7,       // JPEG compression applied after resize
-  maxDimension: 1024, // Longest edge — photo is resized client-side before upload
+  quality: 0.6,       // JPEG compression applied after resize
+  maxDimension: 768,  // Longest edge — OpenAI uses detail:low (512x512) so no need for full res
   format: 'jpeg',
 } as const;
 

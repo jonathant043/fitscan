@@ -10,6 +10,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  ScrollView,
   Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -272,45 +273,51 @@ export default function QuizScreen({ onComplete }: { onComplete?: () => void } =
         </Text>
       </View>
 
-      {/* Question */}
-      <View style={styles.questionContainer}>
-        <Text style={styles.questionTitle}>{question.title}</Text>
-        {question.subtitle && (
-          <Text style={styles.questionSubtitle}>{question.subtitle}</Text>
-        )}
-      </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Question */}
+        <View style={styles.questionContainer}>
+          <Text style={styles.questionTitle}>{question.title}</Text>
+          {question.subtitle && (
+            <Text style={styles.questionSubtitle}>{question.subtitle}</Text>
+          )}
+        </View>
 
-      {/* Answers */}
-      <View style={styles.answersContainer}>
-        {question.answers.map((ans) => {
-          const isActive = question.multiSelect
-            ? multiSelections.includes(ans.value)
-            : answers[question.id] === ans.value;
+        {/* Answers */}
+        <View style={styles.answersContainer}>
+          {question.answers.map((ans) => {
+            const isActive = question.multiSelect
+              ? multiSelections.includes(ans.value)
+              : answers[question.id] === ans.value;
 
-          return (
-            <TouchableOpacity
-              key={ans.value}
-              style={[styles.answerCard, isActive && styles.answerCardActive]}
-              onPress={() => handleSelect(ans.value)}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.answerText,
-                  isActive && styles.answerTextActive,
-                ]}
+            return (
+              <TouchableOpacity
+                key={ans.value}
+                style={[styles.answerCard, isActive && styles.answerCardActive]}
+                onPress={() => handleSelect(ans.value)}
+                activeOpacity={0.85}
               >
-                {ans.label}
-              </Text>
-              {isActive && (
-                <View style={styles.checkCircle}>
-                  <Text style={styles.checkMark}>✓</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+                <Text
+                  style={[
+                    styles.answerText,
+                    isActive && styles.answerTextActive,
+                  ]}
+                >
+                  {ans.label}
+                </Text>
+                {isActive && (
+                  <View style={styles.checkCircle}>
+                    <Text style={styles.checkMark}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
 
       {/* Bottom actions */}
       <View style={styles.bottomRow}>
@@ -344,6 +351,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#060d1a",
     paddingHorizontal: 24,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   progressContainer: {
     marginTop: 16,

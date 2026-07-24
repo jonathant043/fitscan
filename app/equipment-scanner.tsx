@@ -5,6 +5,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Modal,
   ScrollView,
@@ -172,7 +173,7 @@ function WorkoutExerciseCard({
 
   return (
     <View style={styles.exerciseCard}>
-      <TouchableOpacity onPress={() => setExpanded((p) => !p)} activeOpacity={0.75}>
+      <Pressable onPress={() => setExpanded((p) => !p)} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
         <View style={styles.exerciseCardHeader}>
           <Text style={styles.exerciseName}>{ex.name}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -196,7 +197,7 @@ function WorkoutExerciseCard({
             <Text style={styles.exerciseMeta}>{ex.rest_seconds}s rest</Text>
           ) : null}
         </View>
-      </TouchableOpacity>
+      </Pressable>
 
       {expanded && (
         <View style={{ marginTop: 8 }}>
@@ -1042,7 +1043,7 @@ export default function EquipmentScannerScreen() {
             ) : null}
 
             <Text style={styles.sectionTitle}>Log Your Sets</Text>
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled>
               {workoutPlan.exercises.map((ex, idx) => (
                 <View key={idx}>
                   <View style={styles.exerciseNumber}>
@@ -1149,7 +1150,7 @@ export default function EquipmentScannerScreen() {
 
       {/* Camera */}
       <View style={styles.cameraContainer}>
-        <CameraView ref={cameraRef} style={styles.camera} facing="back" ratio="16:9" active={isFocused}>
+        <CameraView ref={cameraRef} style={styles.camera} facing="back" active={isFocused}>
           <View style={styles.cameraOverlay}>
             <Animated.View style={[styles.scanFrame, { borderColor }]} />
             {isAnalyzing && (

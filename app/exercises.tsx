@@ -12,6 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../lib/constants";
+import type { WorkoutPlan, WorkoutExercise } from "../lib/api";
 
 type Exercise = {
   name: string;
@@ -154,6 +157,34 @@ export default function ExercisesScreen() {
     exercise.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleStartWorkout = async (exercise: Exercise) => {
+    const workoutExercise: WorkoutExercise = {
+      name: exercise.name,
+      sets: exercise.difficulty === "Beginner" ? "3" : "4",
+      reps: exercise.difficulty === "Advanced" ? "6-8" : "8-12",
+      intensity: exercise.difficulty,
+      muscleGroups: [exercise.muscleGroup],
+      description: exercise.description,
+      equipment: exercise.equipment,
+      rest_seconds: exercise.difficulty === "Advanced" ? 90 : 60,
+    };
+
+    const plan: WorkoutPlan = {
+      workout_title: `${exercise.name} Workout`,
+      workout_description: "",
+      equipment_used: [exercise.equipment],
+      estimated_duration_minutes: 15,
+      exercises: [workoutExercise],
+      ai_used: false,
+      from: "fallback",
+    };
+
+    await AsyncStorage.setItem(STORAGE_KEYS.inProgressWorkout, JSON.stringify(plan));
+    await AsyncStorage.removeItem(STORAGE_KEYS.inProgressSetLogs);
+    setSelectedExercise(null);
+    router.navigate({ pathname: "/equipment-scanner", params: { restore: Date.now().toString() } });
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header with back arrow */}
@@ -261,7 +292,7 @@ export default function ExercisesScreen() {
             </View>
 
             {selectedExercise && (
-              <>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalSubtitle}>
                   {selectedExercise.equipment} • {selectedExercise.muscleGroup}
                 </Text>
@@ -288,12 +319,21 @@ export default function ExercisesScreen() {
                   </View>
                 </View>
 
+                <TouchableOpacity
+                  style={styles.startWorkoutBtn}
+                  onPress={() => handleStartWorkout(selectedExercise)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="play" size={18} color="#020617" />
+                  <Text style={styles.startWorkoutBtnText}>Start Workout</Text>
+                </TouchableOpacity>
+
                 <View style={styles.modalFooterNote}>
                   <Text style={styles.modalFooterText}>
-                    Scan this equipment in the Scan tab to get a full AI-tailored workout built around it.
+                    Or scan the equipment in the Scan tab to get a full AI-tailored workout.
                   </Text>
                 </View>
-              </>
+              </ScrollView>
             )}
           </View>
         </View>
@@ -457,11 +497,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700" as const,
   },
+  startWorkoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#0ea5e9",
+    borderRadius: 999,
+    paddingVertical: 14,
+    marginTop: 20,
+  },
+  startWorkoutBtnText: {
+    color: "#020617",
+    fontSize: 15,
+    fontWeight: "700",
+  },
   modalFooterNote: {
-    marginTop: 16,
+    marginTop: 12,
   },
   modalFooterText: {
     fontSize: 12,
     color: "#6b7280",
+    textAlign: "center",
   },
 });

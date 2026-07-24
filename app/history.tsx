@@ -87,79 +87,81 @@ function WorkoutCard({ entry, onRepeat }: { entry: HistoryEntry; onRepeat: (entr
   const exercises = entry.exercises ?? [];
 
   return (
-    <TouchableOpacity
-      onPress={() => setExpanded((v) => !v)}
-      activeOpacity={0.85}
-      style={styles.workoutCard}
-    >
-      {/* Card header row */}
-      <View style={styles.workoutCardIcon}>
-        <Ionicons name="barbell-outline" size={20} color={COLORS.primary} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={styles.workoutCardTop}>
-          <Text style={styles.workoutTitle}>{entry.workout_title}</Text>
-          <Ionicons
-            name={expanded ? "chevron-up" : "chevron-down"}
-            size={16}
-            color="#475569"
-          />
+    <View style={styles.workoutCard}>
+      {/* Tappable header row */}
+      <TouchableOpacity
+        onPress={() => setExpanded((v) => !v)}
+        activeOpacity={0.85}
+        style={styles.workoutCardHeader}
+      >
+        <View style={styles.workoutCardIcon}>
+          <Ionicons name="barbell-outline" size={20} color={COLORS.primary} />
         </View>
-        <Text style={styles.workoutMeta}>
-          {entry.exercise_count} exercises · {entry.estimated_duration_minutes} min
-        </Text>
-
-        {/* Muscle tags */}
-        {(entry.muscle_groups ?? []).length > 0 && (
-          <View style={styles.muscleTags}>
-            {(entry.muscle_groups ?? []).slice(0, 4).map((mg) => (
-              <View key={mg} style={styles.muscleTag}>
-                <Text style={styles.muscleTagText}>{mg}</Text>
-              </View>
-            ))}
+        <View style={{ flex: 1 }}>
+          <View style={styles.workoutCardTop}>
+            <Text style={styles.workoutTitle}>{entry.workout_title}</Text>
+            <Ionicons
+              name={expanded ? "chevron-up" : "chevron-down"}
+              size={16}
+              color="#475569"
+            />
           </View>
-        )}
+          <Text style={styles.workoutMeta}>
+            {entry.exercise_count} exercises · {entry.estimated_duration_minutes} min
+          </Text>
 
-        {/* Expanded exercise list */}
-        {expanded && exercises.length > 0 && (
-          <View style={styles.exerciseList}>
-            {exercises.map((ex, i) => (
-              <View key={i} style={styles.exerciseRow}>
-                <View style={styles.exerciseNum}>
-                  <Text style={styles.exerciseNumText}>{i + 1}</Text>
+          {/* Muscle tags */}
+          {(entry.muscle_groups ?? []).length > 0 && (
+            <View style={styles.muscleTags}>
+              {(entry.muscle_groups ?? []).slice(0, 4).map((mg) => (
+                <View key={mg} style={styles.muscleTag}>
+                  <Text style={styles.muscleTagText}>{mg}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.exerciseName}>{ex.name}</Text>
+              ))}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      {/* Expanded exercise list (outside TouchableOpacity so it doesn't block scroll) */}
+      {expanded && exercises.length > 0 && (
+        <View style={styles.exerciseList}>
+          {exercises.map((ex, i) => (
+            <View key={i} style={styles.exerciseRow}>
+              <View style={styles.exerciseNum}>
+                <Text style={styles.exerciseNumText}>{i + 1}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.exerciseName}>{ex.name}</Text>
+                <Text style={styles.exerciseDetail}>
+                  {ex.sets} sets · {ex.reps}
+                </Text>
+                {/* Show logged weights if available */}
+                {ex.setLogs && ex.setLogs.length > 0 && (
                   <Text style={styles.exerciseDetail}>
-                    {ex.sets} sets · {ex.reps}
+                    Logged: {ex.setLogs.map((l) => `${l.weightLbs}lbs×${l.reps}`).join(", ")}
                   </Text>
-                  {/* Show logged weights if available */}
-                  {ex.setLogs && ex.setLogs.length > 0 && (
-                    <Text style={styles.exerciseDetail}>
-                      Logged: {ex.setLogs.map((l) => `${l.weightLbs}lbs×${l.reps}`).join(", ")}
-                    </Text>
-                  )}
-                </View>
+                )}
               </View>
-            ))}
+            </View>
+          ))}
 
-            {/* Repeat workout button */}
-            <TouchableOpacity
-              style={styles.repeatBtn}
-              onPress={() => onRepeat(entry)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="refresh-outline" size={16} color="#020617" />
-              <Text style={styles.repeatBtnText}>Repeat workout</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          {/* Repeat workout button */}
+          <TouchableOpacity
+            style={styles.repeatBtn}
+            onPress={() => onRepeat(entry)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="refresh-outline" size={16} color="#020617" />
+            <Text style={styles.repeatBtnText}>Repeat workout</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
-        {expanded && exercises.length === 0 && (
-          <Text style={styles.noExercises}>Exercise details not available for this entry</Text>
-        )}
-      </View>
-    </TouchableOpacity>
+      {expanded && exercises.length === 0 && (
+        <Text style={styles.noExercises}>Exercise details not available for this entry</Text>
+      )}
+    </View>
   );
 }
 
@@ -409,12 +411,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   workoutCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
     backgroundColor: "#0f172a",
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
+  },
+  workoutCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
   },
   workoutCardTop: {
@@ -444,7 +448,7 @@ const styles = StyleSheet.create({
 
   // Exercise list (expanded)
   exerciseList: {
-    marginTop: 14,
+    marginTop: 10,
     borderTopWidth: 1,
     borderTopColor: "#1e293b",
     paddingTop: 12,
