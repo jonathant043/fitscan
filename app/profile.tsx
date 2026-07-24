@@ -1,6 +1,6 @@
 // app/profile.tsx
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   loadProfile,
@@ -26,6 +27,7 @@ import { restorePurchases, checkProEntitlement } from "../lib/purchases";
 import { deleteMyData } from "../lib/api";
 import { clearHistory } from "../lib/workoutHistory";
 import { STORAGE_KEYS } from "../lib/constants";
+import { isMonetizationEnabled } from "../lib/monetization";
 import Paywall from "./paywall";
 
 const EXPERIENCE_LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
@@ -94,25 +96,33 @@ export default function ProfileScreen() {
   const [isPro, setIsPro] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const stored = await loadProfile();
-        if (stored) {
-          setProfile(stored);
-          setIsExistingProfile(!!stored.name?.trim());
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const init = async () => {
+        try {
+          const stored = await loadProfile();
+          if (!active) return;
+          if (stored) {
+            setProfile(stored);
+            setIsExistingProfile(!!stored.name?.trim());
+          } else {
+            // Profile was cleared (e.g. after data deletion) — reset to defaults
+            setProfile(defaultProfile);
+            setIsExistingProfile(false);
+          }
+          const status = await getSubscriptionStatus();
+          if (active) setIsPro(status.isPro);
+        } catch (e) {
+          console.warn("Failed to load profile", e);
+        } finally {
+          if (active) setIsLoading(false);
         }
-        const status = await getSubscriptionStatus();
-        setIsPro(status.isPro);
-      } catch (e) {
-        console.warn("Failed to load profile", e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    init();
-  }, []);
+      };
+      init();
+      return () => { active = false; };
+    }, [])
+  );
 
   const toggleEquipment = (item: string) => {
     setProfile((prev) => {
@@ -347,8 +357,8 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Upgrade to Pro */}
-      {!isPro && (
+      {/* Upgrade to Pro — hidden when monetization flag is off */}
+      {!isPro && isMonetizationEnabled() && (
         <TouchableOpacity
           style={styles.upgradeRow}
           onPress={() => setShowPaywall(true)}

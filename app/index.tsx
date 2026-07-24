@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { loadProfile, UserProfile } from "../lib/profileStorage";
 import { loadStats, loadHistory, getSmartNudge, WorkoutStats, HistoryEntry } from "../lib/workoutHistory";
 import { COLORS, STORAGE_KEYS } from "../lib/constants";
+import type { WorkoutPlan, WorkoutExercise } from "../lib/api";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -91,6 +92,34 @@ export default function HomeScreen() {
       return () => { active = false; };
     }, [])
   );
+
+  /** Load a past workout into the scanner as an active session */
+  const handleRepeat = async (entry: HistoryEntry) => {
+    const exercises: WorkoutExercise[] = (entry.exercises ?? []).map((ex) => ({
+      name: ex.name,
+      sets: ex.sets,
+      reps: ex.reps,
+      intensity: "Intermediate",
+      muscleGroups: ex.muscleGroups ?? [],
+      description: ex.description ?? "",
+      equipment: entry.equipment_used?.[0] ?? "",
+      rest_seconds: 60,
+    }));
+
+    const plan: WorkoutPlan = {
+      workout_title: entry.workout_title,
+      workout_description: "",
+      equipment_used: entry.equipment_used ?? [],
+      estimated_duration_minutes: entry.estimated_duration_minutes,
+      exercises,
+      ai_used: false,
+      from: "fallback",
+    };
+
+    await AsyncStorage.setItem(STORAGE_KEYS.inProgressWorkout, JSON.stringify(plan));
+    await AsyncStorage.removeItem(STORAGE_KEYS.inProgressSetLogs);
+    router.push("/equipment-scanner");
+  };
 
   const isNewUser = profileLoaded && !profile?.name;
   const displayName = profile?.name?.trim() || "Athlete";
@@ -225,9 +254,14 @@ export default function HomeScreen() {
             {recentHistory.map((entry) => {
               const equipmentName = entry.equipment_used?.[0] ?? entry.workout_title;
               return (
-                <View key={entry.id} style={styles.scanCard}>
+                <TouchableOpacity
+                  key={entry.id}
+                  style={styles.scanCard}
+                  onPress={() => handleRepeat(entry)}
+                  activeOpacity={0.8}
+                >
                   <View style={styles.scanCardIconBox}>
-                    <Ionicons name="barbell-outline" size={20} color={COLORS.primary} />
+                    <Ionicons name="refresh-outline" size={20} color={COLORS.primary} />
                   </View>
                   <View style={styles.scanCardBody}>
                     <Text style={styles.scanCardTitle}>{equipmentName}</Text>
@@ -239,7 +273,7 @@ export default function HomeScreen() {
                       <Text style={styles.setsBadgeText}>{entry.exercise_count} exercises</Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>

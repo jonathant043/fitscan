@@ -12,6 +12,7 @@ import { COLORS, STORAGE_KEYS } from "../lib/constants";
 import { profileExists } from "../lib/profileStorage";
 import { registerForPushNotifications } from "../lib/notifications";
 import { initPurchases } from "../lib/purchases";
+import { fetchMonetizationFlag } from "../lib/monetization";
 import QuizScreen from "./quiz";
 
 // Keep the native splash hidden until our custom one is ready
@@ -215,6 +216,7 @@ export default function RootLayout() {
   useEffect(() => {
     registerForPushNotifications().catch(() => {});
     initPurchases().catch(() => {});
+    fetchMonetizationFlag().catch(() => {});
 
     // Check if the user is new (no profile AND quiz not completed)
     const checkNewUser = async () => {

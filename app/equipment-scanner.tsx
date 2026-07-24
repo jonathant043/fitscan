@@ -41,6 +41,7 @@ import { loadProfile, type UserProfile } from "../lib/profileStorage";
 import { getWeightUnit, setWeightUnit, toDisplay, toLbs, type WeightUnit } from "../lib/weightUnit";
 import { checkProEntitlement } from "../lib/purchases";
 import { scheduleRestTimerNotification, cancelRestTimerNotification, vibrateOnTimerComplete } from "../lib/restTimer";
+import { isMonetizationEnabled } from "../lib/monetization";
 import Paywall from "./paywall";
 import { schedulePostWorkoutNotifications } from "../lib/notifications";
 import * as StoreReview from "expo-store-review";
@@ -605,22 +606,24 @@ export default function EquipmentScannerScreen() {
   const handleCaptureAndAnalyze = async () => {
     if (!cameraRef.current || isAnalyzing) return;
 
-    // Check scan limit before taking the photo
-    const status = await getSubscriptionStatus();
-    if (!status.isPro && status.scansUsed >= SCAN_LIMIT.free) {
-      setPaywallScansUsed(status.scansUsed);
-      setPaywallDaysUntilReset(status.daysUntilReset);
-      setShowPaywall(true);
-      return;
-    }
+    // Check scan limit before taking the photo (only when monetization is active)
+    if (isMonetizationEnabled()) {
+      const status = await getSubscriptionStatus();
+      if (!status.isPro && status.scansUsed >= SCAN_LIMIT.free) {
+        setPaywallScansUsed(status.scansUsed);
+        setPaywallDaysUntilReset(status.daysUntilReset);
+        setShowPaywall(true);
+        return;
+      }
 
-    // Consume one scan (increments counter)
-    const { allowed, scansUsed: consumedScansUsed } = await consumeScan();
-    if (!allowed) {
-      setPaywallScansUsed(consumedScansUsed);
-      setPaywallDaysUntilReset(status.daysUntilReset);
-      setShowPaywall(true);
-      return;
+      // Consume one scan (increments counter)
+      const { allowed, scansUsed: consumedScansUsed } = await consumeScan();
+      if (!allowed) {
+        setPaywallScansUsed(consumedScansUsed);
+        setPaywallDaysUntilReset(status.daysUntilReset);
+        setShowPaywall(true);
+        return;
+      }
     }
 
     try {
@@ -668,32 +671,36 @@ export default function EquipmentScannerScreen() {
         await AsyncStorage.setItem(STORAGE_KEYS.firstScanDone, "true");
         trackEvent("first_scan_success", undefined, { equipment_type: result.equipment_type }).catch(() => {});
       }
-      // Show paywall if user is not pro and we haven't auto-shown in the last 7 days
-      const isPro = await checkProEntitlement();
-      if (!isPro) {
-        const lastShown = await AsyncStorage.getItem(STORAGE_KEYS.paywallLastShown);
-        const sevenDays = 7 * 24 * 60 * 60 * 1000;
-        const canShow = !lastShown || Date.now() - parseInt(lastShown, 10) > sevenDays;
-        if (canShow) {
-          setTimeout(() => {
-            if (!isMounted.current) return;
-            setPaywallContext("post_first_scan");
-            setShowPaywall(true);
-            AsyncStorage.setItem(STORAGE_KEYS.paywallLastShown, String(Date.now())).catch(() => {});
-          }, 1500);
+      // Show paywall if monetization is on, user is not pro, and we haven't auto-shown in 7 days
+      if (isMonetizationEnabled()) {
+        const isPro = await checkProEntitlement();
+        if (!isPro) {
+          const lastShown = await AsyncStorage.getItem(STORAGE_KEYS.paywallLastShown);
+          const sevenDays = 7 * 24 * 60 * 60 * 1000;
+          const canShow = !lastShown || Date.now() - parseInt(lastShown, 10) > sevenDays;
+          if (canShow) {
+            setTimeout(() => {
+              if (!isMounted.current) return;
+              setPaywallContext("post_first_scan");
+              setShowPaywall(true);
+              AsyncStorage.setItem(STORAGE_KEYS.paywallLastShown, String(Date.now())).catch(() => {});
+            }, 1500);
+          }
         }
       }
     } catch (err) {
       if (!isMounted.current) return;
 
-      // Server-side scan limit hit
+      // Server-side scan limit hit (only show paywall when monetization is active)
       if (err instanceof ApiError && err.message === "SCAN_LIMIT") {
-        const data = err.data as { used?: number; limit?: number } | undefined;
-        setPaywallScansUsed(data?.used ?? SCAN_LIMIT.free);
-        setPaywallDaysUntilReset(0);
-        setPaywallContext("scan_limit");
-        setShowPaywall(true);
-        trackEvent("scan_limit_hit", undefined, { used: data?.used, limit: data?.limit }).catch(() => {});
+        if (isMonetizationEnabled()) {
+          const data = err.data as { used?: number; limit?: number } | undefined;
+          setPaywallScansUsed(data?.used ?? SCAN_LIMIT.free);
+          setPaywallDaysUntilReset(0);
+          setPaywallContext("scan_limit");
+          setShowPaywall(true);
+          trackEvent("scan_limit_hit", undefined, { used: data?.used, limit: data?.limit }).catch(() => {});
+        }
         return;
       }
 
@@ -717,8 +724,8 @@ export default function EquipmentScannerScreen() {
   const handleAddToQueue = async () => {
     if (!currentResult) return;
 
-    // Multi-scan gate: adding 2nd+ item requires Pro
-    if (scannedItems.length >= 1) {
+    // Multi-scan gate: adding 2nd+ item requires Pro (only when monetization is active)
+    if (isMonetizationEnabled() && scannedItems.length >= 1) {
       const isPro = await checkProEntitlement();
       if (!isPro) {
         setPaywallContext("multiscan_gate");

@@ -3,7 +3,7 @@
 // Every answer has a real effect on workout generation or app behavior.
 // Ships ACTIVE regardless of MONETIZATION_ENABLED flag.
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS, STORAGE_KEYS } from "../lib/constants";
 import {
@@ -117,9 +118,15 @@ export default function QuizScreen({ onComplete }: { onComplete?: () => void } =
   const total = QUESTIONS.length;
   const progress = (step + 1) / total;
 
-  useEffect(() => {
-    trackEvent("quiz_started").catch(() => {});
-  }, []);
+  // Reset quiz state every time the screen gains focus (handles post-delete re-entry)
+  useFocusEffect(
+    useCallback(() => {
+      setStep(0);
+      setAnswers({});
+      progressAnim.setValue(0);
+      trackEvent("quiz_started").catch(() => {});
+    }, [])
+  );
 
   useEffect(() => {
     Animated.timing(progressAnim, {
