@@ -15,6 +15,7 @@ import {
   TextInput,
   AppState,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused, useFocusEffect } from "@react-navigation/native";
@@ -902,6 +903,7 @@ export default function EquipmentScannerScreen() {
 
     return (
       <Modal visible animationType="slide" transparent onRequestClose={() => setView("camera")}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheet, { flexDirection: "column" }]}>
             <View style={styles.sheetHandle} />
@@ -988,6 +990,7 @@ export default function EquipmentScannerScreen() {
             )}
           </View>
         </View>
+        </GestureHandlerRootView>
       </Modal>
     );
   };
@@ -997,6 +1000,7 @@ export default function EquipmentScannerScreen() {
 
     return (
       <Modal visible animationType="slide" transparent={false} onRequestClose={handleReset}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={{ flex: 1, backgroundColor: COLORS.background }}>
           <View style={[styles.sheet, { flex: 1, maxHeight: "100%", borderRadius: 0, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.sheetHandle} />
@@ -1091,6 +1095,7 @@ export default function EquipmentScannerScreen() {
             </View>
           </View>
         </View>
+        </GestureHandlerRootView>
       </Modal>
     );
   };

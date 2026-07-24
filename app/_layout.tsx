@@ -1,6 +1,8 @@
 // app/_layout.tsx
+import "react-native-gesture-handler";
 import React, { useRef, useEffect, useState } from "react";
 import { View, TouchableOpacity, StyleSheet, Text, Animated, Image } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -235,6 +237,7 @@ export default function RootLayout() {
   const handleQuizDone = () => setNeedsQuiz(false);
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
     <ErrorBoundary>
       <View style={{ flex: 1 }}>
@@ -323,5 +326,6 @@ export default function RootLayout() {
       </View>
     </ErrorBoundary>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
