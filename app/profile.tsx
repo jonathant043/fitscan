@@ -450,6 +450,10 @@ export default function ProfileScreen() {
                         );
                       }
 
+                      // 5. Reset in-memory state immediately (profile screen is still mounted)
+                      setProfile(defaultProfile);
+                      setIsExistingProfile(false);
+
                       Alert.alert(
                         "Data deleted",
                         `${total} server record${total !== 1 ? "s" : ""} removed. Local data cleared.\n\nYou'll be taken through setup again.`,

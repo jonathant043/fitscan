@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused, useFocusEffect } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { Ionicons } from "@expo/vector-icons";
@@ -435,24 +435,31 @@ export default function EquipmentScannerScreen() {
   useEffect(() => {
     loadProfile().then((p) => { if (p) setUserProfile(p); }).catch(() => {});
     getWeightUnit().then(setWeightUnitState).catch(() => {});
-    // Restore in-progress workout session if the app was killed mid-workout
-    const restoreSession = async () => {
-      try {
-        const [planRaw, logsRaw] = await AsyncStorage.multiGet([
-          STORAGE_KEYS.inProgressWorkout,
-          STORAGE_KEYS.inProgressSetLogs,
-        ]);
-        const plan = planRaw[1] ? JSON.parse(planRaw[1]) as WorkoutPlan : null;
-        const logs = logsRaw[1] ? JSON.parse(logsRaw[1]) as Record<number, SetLog[]> : null;
-        if (plan) {
-          setWorkoutPlan(plan);
-          if (logs) setExerciseSetLogs(logs);
-          setView("full-workout");
-        }
-      } catch {}
-    };
-    restoreSession();
   }, []);
+
+  // Restore in-progress workout session on focus (not just mount).
+  // This handles both app-kill recovery AND "repeat workout" navigation from home/history,
+  // where the scanner tab is already mounted and a new inProgressWorkout was written.
+  useFocusEffect(
+    useCallback(() => {
+      const restoreSession = async () => {
+        try {
+          const [planRaw, logsRaw] = await AsyncStorage.multiGet([
+            STORAGE_KEYS.inProgressWorkout,
+            STORAGE_KEYS.inProgressSetLogs,
+          ]);
+          const plan = planRaw[1] ? JSON.parse(planRaw[1]) as WorkoutPlan : null;
+          const logs = logsRaw[1] ? JSON.parse(logsRaw[1]) as Record<number, SetLog[]> : null;
+          if (plan) {
+            setWorkoutPlan(plan);
+            if (logs) setExerciseSetLogs(logs);
+            setView("full-workout");
+          }
+        } catch {}
+      };
+      restoreSession();
+    }, [])
+  );
 
   // Load "last time" data when a workout plan is generated
   useEffect(() => {
