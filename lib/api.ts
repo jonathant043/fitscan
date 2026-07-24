@@ -216,7 +216,7 @@ export async function recognizeEquipment(
 
     // Server-side scan limit hit — structured response, not an error
     if (data.code === 'SCAN_LIMIT') {
-      throw new ApiError('SCAN_LIMIT', 200, data as ScanLimitResponse);
+      throw new ApiError('SCAN_LIMIT', 429, data as ScanLimitResponse);
     }
 
     if (!data.equipment_type || !data.exercises) {

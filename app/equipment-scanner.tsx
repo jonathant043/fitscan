@@ -20,7 +20,7 @@ import { useIsFocused, useFocusEffect } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
 import {
   recognizeEquipment,
@@ -375,6 +375,7 @@ type ScreenView = "camera" | "single-result" | "full-workout";
 
 export default function EquipmentScannerScreen() {
   const router = useRouter();
+  const { restore } = useLocalSearchParams<{ restore?: string }>();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
@@ -452,7 +453,7 @@ export default function EquipmentScannerScreen() {
           const logs = logsRaw[1] ? JSON.parse(logsRaw[1]) as Record<number, SetLog[]> : null;
           if (plan) {
             setWorkoutPlan(plan);
-            if (logs) setExerciseSetLogs(logs);
+            setExerciseSetLogs(logs ?? {});
             setView("full-workout");
           }
         } catch {}
@@ -460,6 +461,27 @@ export default function EquipmentScannerScreen() {
       restoreSession();
     }, [])
   );
+
+  // Backup trigger: when navigating here with ?restore=<timestamp>, read session from AsyncStorage.
+  // This handles cases where useFocusEffect doesn't re-fire (e.g. tab already focused).
+  useEffect(() => {
+    if (!restore) return;
+    (async () => {
+      try {
+        const [planRaw, logsRaw] = await AsyncStorage.multiGet([
+          STORAGE_KEYS.inProgressWorkout,
+          STORAGE_KEYS.inProgressSetLogs,
+        ]);
+        const plan = planRaw[1] ? JSON.parse(planRaw[1]) as WorkoutPlan : null;
+        const logs = logsRaw[1] ? JSON.parse(logsRaw[1]) as Record<number, SetLog[]> : null;
+        if (plan) {
+          setWorkoutPlan(plan);
+          setExerciseSetLogs(logs ?? {});
+          setView("full-workout");
+        }
+      } catch {}
+    })();
+  }, [restore]);
 
   // Load "last time" data when a workout plan is generated
   useEffect(() => {
@@ -926,7 +948,7 @@ export default function EquipmentScannerScreen() {
                 <Text style={styles.sectionTitle}>
                   {exercises.length} exercises available
                 </Text>
-                <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+                <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   {exercises.map((ex, idx) => (
                     <ExerciseCard key={idx} ex={ex} />
                   ))}

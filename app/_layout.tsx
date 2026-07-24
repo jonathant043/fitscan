@@ -48,8 +48,9 @@ function FitScanSplash({ onDone }: { onDone: () => void }) {
     );
 
     // Ring 2 — offset by 700ms for staggered effect
+    let pulse2: Animated.CompositeAnimation | null = null;
     const pulse2Timer = setTimeout(() => {
-      const pulse2 = Animated.loop(
+      pulse2 = Animated.loop(
         Animated.parallel([
           Animated.sequence([
             Animated.timing(ring2Scale, { toValue: 1.9, duration: 1400, useNativeDriver: true }),
@@ -79,6 +80,7 @@ function FitScanSplash({ onDone }: { onDone: () => void }) {
       clearTimeout(pulse2Timer);
       clearTimeout(doneTimer);
       pulse1.stop();
+      pulse2?.stop();
     };
   }, []);
 
@@ -309,7 +311,7 @@ export default function RootLayout() {
 
         {/* Full-screen quiz gate for new users — blocks main app until complete */}
         {splashDone && needsQuiz && (
-          <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { zIndex: 998 }]}>
             <QuizScreen onComplete={handleQuizDone} />
           </View>
         )}

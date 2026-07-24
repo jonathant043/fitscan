@@ -158,6 +158,7 @@ export default function ProfileScreen() {
     try {
       await clearProfile();
       setProfile(defaultProfile);
+      setIsExistingProfile(false);
     } catch (e) {
       console.error("Clear profile error", e);
       Alert.alert("Error", "Could not reset your profile.");
@@ -173,7 +174,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
       {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.push("/")}>

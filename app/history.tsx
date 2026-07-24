@@ -200,7 +200,7 @@ export default function HistoryScreen() {
     // Write to the in-progress session keys — equipment-scanner will pick them up
     await AsyncStorage.setItem(STORAGE_KEYS.inProgressWorkout, JSON.stringify(plan));
     await AsyncStorage.removeItem(STORAGE_KEYS.inProgressSetLogs); // fresh set logs
-    router.push("/equipment-scanner");
+    router.navigate({ pathname: "/equipment-scanner", params: { restore: Date.now().toString() } });
   };
 
   useFocusEffect(
@@ -231,6 +231,7 @@ export default function HistoryScreen() {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View style={styles.header}>

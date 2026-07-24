@@ -175,6 +175,9 @@ export default function Paywall({
       } else {
         Alert.alert("No purchases found", "We couldn't find any previous purchases.");
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Please check your connection and try again.";
+      Alert.alert("Restore failed", msg);
     } finally {
       setRestoring(false);
     }
@@ -233,6 +236,7 @@ export default function Paywall({
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Close */}
             <TouchableOpacity style={styles.closeBtn} onPress={handleDismiss}>
@@ -301,7 +305,7 @@ export default function Paywall({
                     activeOpacity={0.85}
                     disabled={loading}
                   >
-                    {isAnnual && (
+                    {isAnnual && !trialEligible && (
                       <View style={styles.planBadge}>
                         <Text style={styles.planBadgeText}>BEST VALUE {"\u00B7"} SAVE 33%</Text>
                       </View>

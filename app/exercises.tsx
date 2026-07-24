@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -159,7 +158,7 @@ export default function ExercisesScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header with back arrow */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push("/")}>
+        <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#e5e7eb" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Exercise library</Text>
@@ -177,11 +176,13 @@ export default function ExercisesScreen() {
         />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.categoriesContainer}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
         >
           {categories.map((category) => (
             <TouchableOpacity
@@ -271,9 +272,9 @@ export default function ExercisesScreen() {
 
                 <View style={styles.modalRow}>
                   <Text style={styles.modalLabel}>Difficulty</Text>
-                  <Text
+                  <View
                     style={[
-                      styles.modalTag,
+                      styles.modalTagWrapper,
                       {
                         backgroundColor: getDifficultyColor(
                           selectedExercise.difficulty
@@ -281,8 +282,10 @@ export default function ExercisesScreen() {
                       },
                     ]}
                   >
-                    {selectedExercise.difficulty}
-                  </Text>
+                    <Text style={styles.modalTagText}>
+                      {selectedExercise.difficulty}
+                    </Text>
+                  </View>
                 </View>
 
                 <View style={styles.modalFooterNote}>
@@ -443,13 +446,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#9ca3af",
   },
-  modalTag: {
-    color: "#020617",
+  modalTagWrapper: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
+    overflow: "hidden" as const,
+  },
+  modalTagText: {
+    color: "#020617",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "700" as const,
   },
   modalFooterNote: {
     marginTop: 16,

@@ -118,7 +118,7 @@ export default function HomeScreen() {
 
     await AsyncStorage.setItem(STORAGE_KEYS.inProgressWorkout, JSON.stringify(plan));
     await AsyncStorage.removeItem(STORAGE_KEYS.inProgressSetLogs);
-    router.push("/equipment-scanner");
+    router.navigate({ pathname: "/equipment-scanner", params: { restore: Date.now().toString() } });
   };
 
   const isNewUser = profileLoaded && !profile?.name;
@@ -129,6 +129,7 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* ── Header ── */}
         <View style={styles.header}>

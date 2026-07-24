@@ -26,7 +26,7 @@ function currentMonth(): string {
 function daysUntilMonthEnd(): number {
   const now = new Date();
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return lastDay.getDate() - now.getDate() + 1;
+  return lastDay.getDate() - now.getDate();
 }
 
 // ---------------------------------------------------------------------------
