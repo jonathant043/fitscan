@@ -85,21 +85,35 @@ export async function isAtLimit(): Promise<boolean> {
   return data.scansUsed >= SCAN_LIMIT.free;
 }
 
+/** In-memory lock to prevent concurrent consumeScan calls from double-counting */
+let consumeLock: Promise<void> = Promise.resolve();
+
 /** Call this before every scan. Returns whether the scan is allowed. */
 export async function consumeScan(): Promise<{ allowed: boolean; scansUsed: number; scansRemaining: number }> {
-  const data = await loadData();
-  if (data.isPro) {
+  // Chain on the lock so only one consumeScan runs at a time
+  let result: { allowed: boolean; scansUsed: number; scansRemaining: number };
+  const prev = consumeLock;
+  consumeLock = prev.then(async () => {
+    const data = await loadData();
+    if (data.isPro) {
+      const updated = { ...data, scansUsed: data.scansUsed + 1 };
+      await saveData(updated);
+      result = { allowed: true, scansUsed: updated.scansUsed, scansRemaining: Infinity };
+      return;
+    }
+    if (data.scansUsed >= SCAN_LIMIT.free) {
+      result = { allowed: false, scansUsed: data.scansUsed, scansRemaining: 0 };
+      return;
+    }
     const updated = { ...data, scansUsed: data.scansUsed + 1 };
     await saveData(updated);
-    return { allowed: true, scansUsed: updated.scansUsed, scansRemaining: Infinity };
-  }
-  if (data.scansUsed >= SCAN_LIMIT.free) {
-    return { allowed: false, scansUsed: data.scansUsed, scansRemaining: 0 };
-  }
-  const updated = { ...data, scansUsed: data.scansUsed + 1 };
-  await saveData(updated);
-  const remaining = SCAN_LIMIT.free - updated.scansUsed;
-  return { allowed: true, scansUsed: updated.scansUsed, scansRemaining: remaining };
+    const remaining = SCAN_LIMIT.free - updated.scansUsed;
+    result = { allowed: true, scansUsed: updated.scansUsed, scansRemaining: remaining };
+  }).catch(() => {
+    result = { allowed: false, scansUsed: SCAN_LIMIT.free, scansRemaining: 0 };
+  });
+  await consumeLock;
+  return result!;
 }
 
 /** Activate Pro (called after a successful purchase/trial). */

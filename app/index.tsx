@@ -75,13 +75,17 @@ export default function HomeScreen() {
     React.useCallback(() => {
       let active = true;
       (async () => {
-        const [p, s, h, quizFlag] = await Promise.all([
+        const results = await Promise.allSettled([
           loadProfile(),
           loadStats(),
           loadHistory(),
           AsyncStorage.getItem(STORAGE_KEYS.quizCompleted),
         ]);
         if (!active) return;
+        const p = results[0].status === "fulfilled" ? results[0].value : null;
+        const s = results[1].status === "fulfilled" ? results[1].value : null;
+        const h = results[2].status === "fulfilled" ? results[2].value : [];
+        const quizFlag = results[3].status === "fulfilled" ? results[3].value : null;
         setProfile(p);
         setStats(s);
         setRecentHistory([...h].reverse().slice(0, 3));

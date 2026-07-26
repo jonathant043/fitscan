@@ -145,7 +145,8 @@ export default function Paywall({
     if (packages.length === 0) return;
     setLoading(true);
     try {
-      const pkg = packages[selectedIdx];
+      const idx = Math.min(selectedIdx, packages.length - 1);
+      const pkg = packages[idx];
       const success = await purchasePackage(pkg);
       if (success) {
         await activatePro();

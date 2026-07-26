@@ -421,8 +421,14 @@ export default function ProfileScreen() {
                   onPress: async () => {
                     try {
                       // 1. Delete server-side data
-                      const result = await deleteMyData();
-                      const total = Object.values(result.deleted).reduce((a, b) => a + b, 0);
+                      let result;
+                      try {
+                        result = await deleteMyData();
+                      } catch {
+                        Alert.alert("Error", "Could not delete server data. Please check your connection and try again.");
+                        return;
+                      }
+                      const total = Object.values(result.deleted).reduce((a: number, b: number) => a + b, 0);
 
                       // 2. Preserve Pro status before wiping local data
                       const stillPro = await checkProEntitlement();

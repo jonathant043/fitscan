@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Pressable,
   ActivityIndicator,
   Modal,
   ScrollView,
@@ -15,7 +14,7 @@ import {
   TextInput,
   AppState,
 } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { GestureHandlerRootView, ScrollView as GHScrollView } from "react-native-gesture-handler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused, useFocusEffect } from "@react-navigation/native";
@@ -174,7 +173,7 @@ function WorkoutExerciseCard({
 
   return (
     <View style={styles.exerciseCard}>
-      <Pressable onPress={() => setExpanded((p) => !p)} style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
+      <TouchableOpacity onPress={() => setExpanded((p) => !p)} activeOpacity={0.75}>
         <View style={styles.exerciseCardHeader}>
           <Text style={styles.exerciseName}>{ex.name}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -198,7 +197,7 @@ function WorkoutExerciseCard({
             <Text style={styles.exerciseMeta}>{ex.rest_seconds}s rest</Text>
           ) : null}
         </View>
-      </Pressable>
+      </TouchableOpacity>
 
       {expanded && (
         <View style={{ marginTop: 8 }}>
@@ -468,12 +467,14 @@ export default function EquipmentScannerScreen() {
   // This handles cases where useFocusEffect doesn't re-fire (e.g. tab already focused).
   useEffect(() => {
     if (!restore) return;
+    let active = true;
     (async () => {
       try {
         const [planRaw, logsRaw] = await AsyncStorage.multiGet([
           STORAGE_KEYS.inProgressWorkout,
           STORAGE_KEYS.inProgressSetLogs,
         ]);
+        if (!active || !isMounted.current) return;
         const plan = planRaw[1] ? JSON.parse(planRaw[1]) as WorkoutPlan : null;
         const logs = logsRaw[1] ? JSON.parse(logsRaw[1]) as Record<number, SetLog[]> : null;
         if (plan) {
@@ -483,6 +484,7 @@ export default function EquipmentScannerScreen() {
         }
       } catch {}
     })();
+    return () => { active = false; };
   }, [restore]);
 
   // Load "last time" data when a workout plan is generated
@@ -528,7 +530,10 @@ export default function EquipmentScannerScreen() {
   const isMounted = useRef(true);
   useEffect(() => {
     isMounted.current = true;
-    return () => { isMounted.current = false; };
+    return () => {
+      isMounted.current = false;
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+    };
   }, []);
 
   // -------------------------------------------------------------------------
@@ -547,7 +552,7 @@ export default function EquipmentScannerScreen() {
 
       // Slow-connection hint after threshold
       slowHintTimer.current = setTimeout(() => {
-        setShowSlowHint(true);
+        if (isMounted.current) setShowSlowHint(true);
       }, SLOW_CONNECTION_THRESHOLD_MS);
 
       // Pulse animation on scan frame border
@@ -747,6 +752,7 @@ export default function EquipmentScannerScreen() {
         msg = err.message;
       }
       Alert.alert("Scan failed", msg);
+      if (isMounted.current) setCurrentPhotoUri(null);
     } finally {
       if (isMounted.current) setIsAnalyzing(false);
     }
@@ -951,11 +957,11 @@ export default function EquipmentScannerScreen() {
                 <Text style={styles.sectionTitle}>
                   {exercises.length} exercises available
                 </Text>
-                <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <GHScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   {exercises.map((ex, idx) => (
                     <ExerciseCard key={idx} ex={ex} />
                   ))}
-                </ScrollView>
+                </GHScrollView>
 
                 {/* Action buttons */}
                 <View style={styles.buttonRow}>
@@ -1047,7 +1053,7 @@ export default function EquipmentScannerScreen() {
             ) : null}
 
             <Text style={styles.sectionTitle}>Log Your Sets</Text>
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled>
+            <GHScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled>
               {workoutPlan.exercises.map((ex, idx) => (
                 <View key={idx}>
                   <View style={styles.exerciseNumber}>
@@ -1065,7 +1071,7 @@ export default function EquipmentScannerScreen() {
                 </View>
               ))}
               <View style={{ height: 16 }} />
-            </ScrollView>
+            </GHScrollView>
 
             {/* Rest timer overlay */}
             {restTimerSeconds !== null && (

@@ -1,7 +1,7 @@
 // app/_layout.tsx
 import "react-native-gesture-handler";
 import React, { useRef, useEffect, useState } from "react";
-import { View, TouchableOpacity, StyleSheet, Text, Animated, Image } from "react-native";
+import { View, TouchableOpacity, StyleSheet, Text, Animated, Image, AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,7 +13,8 @@ import { OfflineNotice } from "../components/OfflineNotice";
 import { COLORS, STORAGE_KEYS } from "../lib/constants";
 import { profileExists } from "../lib/profileStorage";
 import { registerForPushNotifications } from "../lib/notifications";
-import { initPurchases } from "../lib/purchases";
+import { initPurchases, checkProEntitlement } from "../lib/purchases";
+import { deactivatePro } from "../lib/scanLimit";
 import { fetchMonetizationFlag } from "../lib/monetization";
 import QuizScreen from "./quiz";
 
@@ -231,6 +232,16 @@ export default function RootLayout() {
       setNeedsQuiz(!hasProfile && quizFlag !== "true");
     };
     checkNewUser().catch(() => setNeedsQuiz(false));
+
+    // Refresh entitlement when app returns to foreground — catches expired subs
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        checkProEntitlement().then((isPro) => {
+          if (!isPro) deactivatePro().catch(() => {});
+        }).catch(() => {});
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   // Quiz completed callback — dismiss quiz, show main app
