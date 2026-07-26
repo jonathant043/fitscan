@@ -203,7 +203,9 @@ export default function Paywall({
   function getMonthlyEquiv(pkg: PurchasesPackage): string | null {
     if (pkg.packageType !== "ANNUAL") return null;
     const monthly = pkg.product.price / 12;
-    return `$${monthly.toFixed(2)}`;
+    // Extract currency symbol from priceString (e.g. "$79.99" → "$", "£79.99" → "£")
+    const symbol = pkg.product.priceString.replace(/[\d.,\s]/g, "").trim() || "$";
+    return `${symbol}${monthly.toFixed(2)}`;
   }
 
   function getCtaText(): string {
@@ -292,6 +294,33 @@ export default function Paywall({
             {/* Plan cards */}
             {loadingOfferings ? (
               <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 20 }} />
+            ) : packages.length === 0 ? (
+              <View style={styles.unavailableContainer}>
+                <Ionicons name="alert-circle-outline" size={28} color={COLORS.textMuted} />
+                <Text style={styles.unavailableText}>Plans unavailable right now</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLoadingOfferings(true);
+                    getCurrentOffering()
+                      .then((offering) => {
+                        if (offering?.availablePackages?.length) {
+                          const sorted = [...offering.availablePackages].sort((a, b) => {
+                            if (a.packageType === "ANNUAL") return -1;
+                            if (b.packageType === "ANNUAL") return 1;
+                            return 0;
+                          });
+                          setPackages(sorted);
+                          setSelectedIdx(0);
+                        }
+                      })
+                      .catch(() => {})
+                      .finally(() => setLoadingOfferings(false));
+                  }}
+                  style={styles.retryBtn}
+                >
+                  <Text style={styles.retryText}>Tap to retry</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               packages.map((pkg, idx) => {
                 const isSelected = idx === selectedIdx;
@@ -633,5 +662,25 @@ const styles = StyleSheet.create({
   legalDot: {
     fontSize: 12,
     color: COLORS.textMuted,
+  },
+
+  unavailableContainer: {
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 24,
+  },
+  unavailableText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    fontWeight: "600",
+  },
+  retryBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  retryText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: "600",
   },
 });
