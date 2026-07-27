@@ -242,8 +242,8 @@ export default function HomeScreen() {
                     <Ionicons name="barbell-outline" size={20} color={COLORS.primary} />
                   </View>
                   <View style={styles.scanCardBody}>
-                    <Text style={styles.scanCardTitle}>{entry.workout_title}</Text>
-                    <Text style={styles.scanCardMuscles}>{muscleLabel}</Text>
+                    <Text style={styles.scanCardTitle} numberOfLines={1}>{entry.workout_title}</Text>
+                    <Text style={styles.scanCardMuscles} numberOfLines={1}>{muscleLabel}</Text>
                   </View>
                   <View style={styles.scanCardRight}>
                     <Text style={styles.scanCardTime}>{timeAgo(entry.timestamp)}</Text>
