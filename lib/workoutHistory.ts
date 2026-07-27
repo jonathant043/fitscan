@@ -85,7 +85,10 @@ function normalizeMuscleGroup(mg: string): string | null {
 function extractMuscleGroups(plan: import('./api').WorkoutPlan): string[] {
   const muscles = new Set<string>();
   for (const exercise of plan.exercises ?? []) {
-    for (const mg of (exercise as { muscleGroups?: string[] }).muscleGroups ?? []) {
+    // Handle both camelCase (muscleGroups) and snake_case (muscle_groups) from AI responses
+    const ex = exercise as { muscleGroups?: string[]; muscle_groups?: string[] };
+    const groups = ex.muscleGroups ?? ex.muscle_groups ?? [];
+    for (const mg of groups) {
       const normalized = normalizeMuscleGroup(mg);
       if (normalized) muscles.add(normalized);
     }
@@ -102,7 +105,31 @@ export async function loadHistory(): Promise<HistoryEntry[]> {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.workoutHistory);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    // Migrate old entries: recompute missing muscle_groups from saved exercises
+    let migrated = false;
+    for (const entry of parsed) {
+      if ((!entry.muscle_groups || entry.muscle_groups.length === 0) && entry.exercises?.length) {
+        const muscles = new Set<string>();
+        for (const ex of entry.exercises) {
+          const groups = ex.muscleGroups ?? ex.muscle_groups ?? [];
+          for (const mg of groups) {
+            const n = normalizeMuscleGroup(mg);
+            if (n) muscles.add(n);
+          }
+        }
+        if (muscles.size > 0) {
+          entry.muscle_groups = [...muscles];
+          migrated = true;
+        }
+      }
+    }
+    if (migrated) {
+      await AsyncStorage.setItem(STORAGE_KEYS.workoutHistory, JSON.stringify(parsed));
+    }
+
+    return parsed;
   } catch {
     return [];
   }
@@ -129,14 +156,17 @@ export async function saveWorkoutToHistory(plan: WorkoutPlan, exerciseSetLogs?: 
     exercise_count: plan.exercises?.length ?? 0,
     estimated_duration_minutes: plan.estimated_duration_minutes ?? 0,
     muscle_groups: extractMuscleGroups(plan),
-    exercises: (plan.exercises ?? []).map((ex, idx) => ({
-      name: ex.name,
-      sets: ex.sets,
-      reps: ex.reps,
-      muscleGroups: ex.muscleGroups ?? [],
-      description: ex.description,
-      setLogs: exerciseSetLogs?.[idx],
-    })),
+    exercises: (plan.exercises ?? []).map((ex, idx) => {
+      const e = ex as { muscleGroups?: string[]; muscle_groups?: string[] } & typeof ex;
+      return {
+        name: ex.name,
+        sets: ex.sets,
+        reps: ex.reps,
+        muscleGroups: e.muscleGroups ?? e.muscle_groups ?? [],
+        description: ex.description,
+        setLogs: exerciseSetLogs?.[idx],
+      };
+    }),
     ai_used: plan.ai_used ?? false,
   };
   await saveHistory([...history, entry]);

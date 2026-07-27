@@ -400,6 +400,8 @@ export default function EquipmentScannerScreen() {
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
 
   const [view, setView] = useState<ScreenView>("camera");
+  // When restoring a session (from exercise library or repeat), hide camera to prevent flash
+  const [restoringSession, setRestoringSession] = useState(!!restore);
 
   // Paywall
   const [showPaywall, setShowPaywall] = useState(false);
@@ -468,6 +470,7 @@ export default function EquipmentScannerScreen() {
   useEffect(() => {
     if (!restore) return;
     let active = true;
+    setRestoringSession(true);
     (async () => {
       try {
         const [planRaw, logsRaw] = await AsyncStorage.multiGet([
@@ -482,7 +485,9 @@ export default function EquipmentScannerScreen() {
           setExerciseSetLogs(logs ?? {});
           setView("full-workout");
         }
-      } catch {}
+      } catch {} finally {
+        if (active && isMounted.current) setRestoringSession(false);
+      }
     })();
     return () => { active = false; };
   }, [restore]);
@@ -1159,9 +1164,9 @@ export default function EquipmentScannerScreen() {
         </View>
       )}
 
-      {/* Camera */}
-      <View style={styles.cameraContainer}>
-        <CameraView ref={cameraRef} style={styles.camera} facing="back" active={isFocused}>
+      {/* Camera — hidden while restoring a session to prevent flash */}
+      <View style={[styles.cameraContainer, restoringSession && { opacity: 0 }]}>
+        <CameraView ref={cameraRef} style={styles.camera} facing="back" active={isFocused && !restoringSession}>
           <View style={styles.cameraOverlay}>
             <Animated.View style={[styles.scanFrame, { borderColor }]} />
             {isAnalyzing && (
