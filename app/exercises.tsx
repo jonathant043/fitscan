@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../lib/constants";
+import { COLORS, STORAGE_KEYS } from "../lib/constants";
 import type { WorkoutPlan, WorkoutExercise } from "../lib/api";
 
 type Exercise = {
@@ -241,6 +241,12 @@ export default function ExercisesScreen() {
         </ScrollView>
 
         <View style={styles.exercisesContainer}>
+          {filteredExercises.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={32} color={COLORS.textMuted} />
+              <Text style={styles.emptyStateText}>No exercises match your filters</Text>
+            </View>
+          )}
           {filteredExercises.map((exercise, index) => (
             <TouchableOpacity
               key={`${exercise.name}-${index}`}
@@ -404,6 +410,16 @@ const styles = StyleSheet.create({
   exercisesContainer: {
     paddingHorizontal: 16,
     paddingBottom: 24,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    gap: 12,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    fontWeight: "500",
   },
   exerciseCard: {
     backgroundColor: "#020617",

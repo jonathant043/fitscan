@@ -56,7 +56,7 @@ export type PaywallProps = {
 function getHeadline(context: PaywallEntryContext): string {
   switch (context) {
     case "scan_limit":
-      return "You've used all 10\nfree scans this month";
+      return `You've used all ${SCAN_LIMIT.free}\nfree scans this month`;
     case "post_first_scan":
       return "Unlock unlimited\nscans";
     case "multiscan_gate":

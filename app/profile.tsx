@@ -26,7 +26,7 @@ import { getSubscriptionStatus } from "../lib/scanLimit";
 import { restorePurchases, checkProEntitlement } from "../lib/purchases";
 import { deleteMyData } from "../lib/api";
 import { clearHistory } from "../lib/workoutHistory";
-import { STORAGE_KEYS } from "../lib/constants";
+import { COLORS, STORAGE_KEYS } from "../lib/constants";
 import { isMonetizationEnabled } from "../lib/monetization";
 import Paywall from "./paywall";
 
@@ -177,8 +177,9 @@ export default function ProfileScreen() {
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]} keyboardShouldPersistTaps="handled">
       {/* Header */}
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.push("/")}>
-          <Text style={styles.backText}>← Home</Text>
+        <TouchableOpacity onPress={() => router.push("/")} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
+          <Text style={styles.backText}>Home</Text>
         </TouchableOpacity>
         <Image source={require("../assets/logo.png")} style={styles.headerLogo} resizeMode="contain" />
       </View>
@@ -522,10 +523,15 @@ const styles = StyleSheet.create({
     height: 36,
     opacity: 0.85,
   },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
   backText: {
-    color: "#60A5FA",
+    color: COLORS.primary,
     fontSize: 14,
-    marginBottom: 4,
+    fontWeight: "500",
   },
   headerTitle: {
     fontSize: 24,
@@ -586,12 +592,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#020617",
   },
   chipActive: {
-    backgroundColor: "#22C55E",
-    borderColor: "#22C55E",
+    backgroundColor: COLORS.success,
+    borderColor: COLORS.success,
   },
   chipActiveFull: {
-    backgroundColor: "#22C55E",
-    borderColor: "#22C55E",
+    backgroundColor: COLORS.success,
+    borderColor: COLORS.success,
   },
   chipText: {
     color: "#E5E7EB",
@@ -606,7 +612,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   primaryButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.primaryBtn,
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: "center",

@@ -23,30 +23,6 @@ import type { WorkoutPlan, WorkoutExercise } from "../lib/api";
 // Helpers
 // ---------------------------------------------------------------------------
 
-const EQUIPMENT_MUSCLES: Record<string, string> = {
-  "Dumbbell": "Biceps · Shoulders",
-  "Barbell": "Back · Legs",
-  "Kettlebell": "Core · Glutes",
-  "Cable Machine": "Back · Shoulders",
-  "Weight Bench": "Chest · Triceps",
-  "Pull-Up Bar": "Back · Biceps",
-  "Treadmill": "Legs · Cardio",
-  "Stationary Bike": "Legs · Cardio",
-  "Jump Rope": "Calves · Cardio",
-  "Resistance Band": "Full Body",
-  "Exercise Mat": "Core",
-  "Yoga Mat": "Flexibility",
-  "Smith Machine": "Quads · Glutes",
-  "Medicine Ball": "Core · Shoulders",
-  "Exercise / Stability Ball": "Core · Balance",
-  "Foam Roller": "Recovery",
-  "Bodyweight": "Full Body",
-};
-
-function getMuscles(equipment: string): string {
-  return EQUIPMENT_MUSCLES[equipment] ?? "Full Body";
-}
-
 function timeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
   const hours = Math.floor(diff / 3_600_000);
@@ -257,15 +233,17 @@ export default function HomeScreen() {
             </View>
 
             {recentHistory.map((entry) => {
-              const equipmentName = entry.equipment_used?.[0] ?? entry.workout_title;
+              const muscleLabel = entry.muscle_groups?.length
+                ? entry.muscle_groups.join(" · ")
+                : "Full Body";
               return (
                 <View key={entry.id} style={styles.scanCard}>
                   <View style={styles.scanCardIconBox}>
                     <Ionicons name="barbell-outline" size={20} color={COLORS.primary} />
                   </View>
                   <View style={styles.scanCardBody}>
-                    <Text style={styles.scanCardTitle}>{equipmentName}</Text>
-                    <Text style={styles.scanCardMuscles}>{getMuscles(equipmentName)}</Text>
+                    <Text style={styles.scanCardTitle}>{entry.workout_title}</Text>
+                    <Text style={styles.scanCardMuscles}>{muscleLabel}</Text>
                   </View>
                   <View style={styles.scanCardRight}>
                     <Text style={styles.scanCardTime}>{timeAgo(entry.timestamp)}</Text>
