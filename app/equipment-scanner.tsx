@@ -601,7 +601,7 @@ export default function EquipmentScannerScreen() {
   // -------------------------------------------------------------------------
   // Permissions — only gate camera views, not restored workout sessions
   // -------------------------------------------------------------------------
-  const needsCamera = !restoringSession && (view === "camera" || view === "single-result");
+  const needsCamera = !restoringSession && !restore && (view === "camera" || view === "single-result");
 
   if (needsCamera && !permission) {
     return (

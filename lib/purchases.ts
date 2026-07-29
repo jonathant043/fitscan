@@ -147,7 +147,8 @@ export async function restorePurchases(): Promise<boolean> {
 async function cacheProStatus(isPro: boolean): Promise<void> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.scanLimit);
-    const data = raw ? JSON.parse(raw) : {};
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const data = raw ? JSON.parse(raw) : { scansUsed: 0, periodStart: currentMonth, isPro: false, proActivatedAt: null };
     data.isPro = isPro;
     if (isPro && !data.proActivatedAt) data.proActivatedAt = Date.now();
     await AsyncStorage.setItem(STORAGE_KEYS.scanLimit, JSON.stringify(data));
