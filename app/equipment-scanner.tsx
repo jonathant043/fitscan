@@ -414,7 +414,7 @@ export default function EquipmentScannerScreen() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallScansUsed, setPaywallScansUsed] = useState<number>(SCAN_LIMIT.free);
   const [paywallDaysUntilReset, setPaywallDaysUntilReset] = useState<number>(0);
-  const [paywallContext, setPaywallContext] = useState<"scan_limit" | "voluntary" | "post_first_scan" | "multiscan_gate">("scan_limit");
+  const [paywallContext, setPaywallContext] = useState<"scan_limit" | "voluntary" | "multiscan_gate">("scan_limit");
 
   // User profile (for AI tailoring)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -657,11 +657,12 @@ export default function EquipmentScannerScreen() {
     if (!cameraRef.current || isAnalyzing) return;
 
     // Check + consume scan atomically — always enforce client-side limits
-    const { allowed, scansUsed: consumedScansUsed, scansRemaining } = await consumeScan();
+    const { allowed, scansUsed: consumedScansUsed } = await consumeScan();
     if (!allowed) {
       setPaywallScansUsed(consumedScansUsed);
       const status = await getSubscriptionStatus();
       setPaywallDaysUntilReset(status.daysUntilReset);
+      setPaywallContext("scan_limit");
       setShowPaywall(true);
       return;
     }

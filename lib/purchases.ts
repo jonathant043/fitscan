@@ -19,6 +19,7 @@ const RC_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY ?? '';
 const ENTITLEMENT_ID = 'pro';
 
 let initialized = false;
+let initPromise: Promise<void> | null = null;
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -29,6 +30,13 @@ let initialized = false;
  * Call once at app startup (in _layout.tsx).
  */
 export async function initPurchases(): Promise<void> {
+  if (!initPromise) {
+    initPromise = doInit();
+  }
+  return initPromise;
+}
+
+async function doInit(): Promise<void> {
   if (initialized || !RC_API_KEY) return;
 
   const deviceId = await getDeviceId();
@@ -62,6 +70,8 @@ function hasPro(info: CustomerInfo): boolean {
  */
 export async function checkProEntitlement(): Promise<boolean> {
   try {
+    await initPurchases();
+    if (!initialized) return getCachedProStatus();
     const info = await Purchases.getCustomerInfo();
     const isPro = hasPro(info);
     await cacheProStatus(isPro);
@@ -77,11 +87,12 @@ export async function checkProEntitlement(): Promise<boolean> {
  */
 export async function isTrialEligible(): Promise<boolean> {
   try {
+    await initPurchases();
+    if (!initialized) return true;
     const offerings = await Purchases.getOfferings();
     const current = offerings.current;
-    if (!current) return true; // No offerings configured — assume eligible
+    if (!current) return true;
 
-    // Check if any package has an intro offer (free trial)
     for (const pkg of current.availablePackages) {
       const product = pkg.product;
       if (product.introPrice && product.introPrice.price === 0) {
@@ -90,7 +101,7 @@ export async function isTrialEligible(): Promise<boolean> {
     }
     return false;
   } catch {
-    return true; // Fail open — Google enforces trial abuse
+    return true;
   }
 }
 
@@ -103,6 +114,8 @@ export async function isTrialEligible(): Promise<boolean> {
  */
 export async function getCurrentOffering(): Promise<PurchasesOffering | null> {
   try {
+    await initPurchases();
+    if (!initialized) return null;
     const offerings = await Purchases.getOfferings();
     return offerings.current ?? null;
   } catch {
@@ -115,6 +128,7 @@ export async function getCurrentOffering(): Promise<PurchasesOffering | null> {
  */
 export async function purchasePackage(pkg: PurchasesPackage): Promise<boolean> {
   try {
+    await initPurchases();
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     const isPro = hasPro(customerInfo);
     await cacheProStatus(isPro);
@@ -131,6 +145,7 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<boolean> {
  */
 export async function restorePurchases(): Promise<boolean> {
   try {
+    await initPurchases();
     const info = await Purchases.restorePurchases();
     const isPro = hasPro(info);
     await cacheProStatus(isPro);

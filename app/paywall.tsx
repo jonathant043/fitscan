@@ -36,7 +36,6 @@ import { trackEvent } from "../lib/api";
 export type PaywallEntryContext =
   | "scan_limit"
   | "voluntary"
-  | "post_first_scan"
   | "multiscan_gate";
 
 export type PaywallProps = {
@@ -57,8 +56,6 @@ function getHeadline(context: PaywallEntryContext): string {
   switch (context) {
     case "scan_limit":
       return `You've used all ${SCAN_LIMIT.free}\nfree scans this month`;
-    case "post_first_scan":
-      return "Unlock unlimited\nscans";
     case "multiscan_gate":
       return "Combine machines\ninto one workout";
     default:
@@ -70,8 +67,6 @@ function getSubline(context: PaywallEntryContext): string {
   switch (context) {
     case "scan_limit":
       return "Upgrade to keep scanning, or wait for your free scans to reset.";
-    case "post_first_scan":
-      return "Your first scan is free. Go Pro for unlimited scans and custom workouts.";
     case "multiscan_gate":
       return "Combine multiple machines into one complete workout plan with Pro.";
     default:
@@ -257,7 +252,7 @@ export default function Paywall({
             <Text style={styles.subheadline}>{getSubline(entryContext)}</Text>
 
             {/* Quiz personalization line */}
-            {quizSummary && entryContext === "post_first_scan" && (
+            {quizSummary && entryContext === "voluntary" && (
               <View style={styles.quizLine}>
                 <Ionicons name="sparkles" size={16} color={COLORS.primary} />
                 <Text style={styles.quizLineText}>{quizSummary}</Text>
