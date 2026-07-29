@@ -315,7 +315,6 @@ export default function RootLayout() {
             }}
           />
           {/* Hidden routes */}
-          <Tabs.Screen name="home" options={{ href: null }} />
           <Tabs.Screen name="+not-found" options={{ href: null }} />
           <Tabs.Screen name="paywall" options={{ href: null }} />
           <Tabs.Screen name="quiz" options={{ href: null }} />

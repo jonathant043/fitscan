@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   Image,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -407,6 +408,33 @@ export default function ProfileScreen() {
           <Text style={styles.secondaryButtonText}>Restore purchases</Text>
         </TouchableOpacity>
 
+        {/* Legal links — Play Store requires these accessible from main UI */}
+        <View style={styles.legalLinks}>
+          {isPro && (
+            <TouchableOpacity
+              style={styles.legalLinkRow}
+              onPress={() => Linking.openURL("https://play.google.com/store/account/subscriptions")}
+            >
+              <Ionicons name="card-outline" size={18} color={COLORS.textMuted} />
+              <Text style={styles.legalLinkText}>Manage subscription</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.legalLinkRow}
+            onPress={() => Linking.openURL("https://fitscanfitness.com/privacy")}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.textMuted} />
+            <Text style={styles.legalLinkText}>Privacy policy</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.legalLinkRow}
+            onPress={() => Linking.openURL("https://fitscanfitness.com/terms")}
+          >
+            <Ionicons name="document-text-outline" size={18} color={COLORS.textMuted} />
+            <Text style={styles.legalLinkText}>Terms of service</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
           style={[styles.secondaryButton, { marginTop: 12, borderColor: "#ef4444" }]}
           onPress={() => {
@@ -662,5 +690,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#9CA3AF",
     marginTop: 1,
+  },
+  legalLinks: {
+    marginTop: 24,
+    gap: 4,
+  },
+  legalLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+  },
+  legalLinkText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
   },
 });

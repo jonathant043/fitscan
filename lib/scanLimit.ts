@@ -116,6 +116,18 @@ export async function consumeScan(): Promise<{ allowed: boolean; scansUsed: numb
   return result!;
 }
 
+/** Refund a scan credit (called when API fails after consumeScan). */
+export async function refundScan(): Promise<void> {
+  try {
+    const data = await loadData();
+    if (data.scansUsed > 0) {
+      await saveData({ ...data, scansUsed: data.scansUsed - 1 });
+    }
+  } catch {
+    // Best effort
+  }
+}
+
 /** Activate Pro (called after a successful purchase/trial). */
 export async function activatePro(): Promise<void> {
   const data = await loadData();

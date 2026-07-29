@@ -37,7 +37,7 @@ import {
 } from "../lib/api";
 import { COLORS, IMAGE_CONFIG, SCAN_LIMIT, STORAGE_KEYS } from "../lib/constants";
 import { saveWorkoutToHistory, getLastSetLogs, type SetLog } from "../lib/workoutHistory";
-import { consumeScan, getSubscriptionStatus } from "../lib/scanLimit";
+import { consumeScan, getSubscriptionStatus, refundScan } from "../lib/scanLimit";
 import { loadProfile, type UserProfile } from "../lib/profileStorage";
 import { getWeightUnit, setWeightUnit, toDisplay, toLbs, type WeightUnit } from "../lib/weightUnit";
 import { checkProEntitlement } from "../lib/purchases";
@@ -726,6 +726,9 @@ export default function EquipmentScannerScreen() {
         trackEvent("scan_limit_hit", undefined, { used: data?.used, limit: data?.limit }).catch(() => {});
         return;
       }
+
+      // Refund the scan credit since the API call failed
+      refundScan().catch(() => {});
 
       let msg = "Network error. Check your internet connection and try again.";
       if (err instanceof ApiError) {

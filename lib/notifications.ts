@@ -2,6 +2,7 @@
 // Push notification registration and local scheduling for engagement/retention nudges.
 
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { loadStats } from "./workoutHistory";
@@ -48,7 +49,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
       });
     }
 
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const token = (await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    )).data;
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
     return token;
   } catch {
