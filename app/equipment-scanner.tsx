@@ -711,23 +711,7 @@ export default function EquipmentScannerScreen() {
         await AsyncStorage.setItem(STORAGE_KEYS.firstScanDone, "true");
         trackEvent("first_scan_success", undefined, { equipment_type: result.equipment_type }).catch(() => {});
       }
-      // Show paywall if user is not pro and we haven't auto-shown in 7 days
-      {
-        const isPro = await checkProEntitlement();
-        if (!isPro) {
-          const lastShown = await AsyncStorage.getItem(STORAGE_KEYS.paywallLastShown);
-          const sevenDays = 7 * 24 * 60 * 60 * 1000;
-          const canShow = !lastShown || Date.now() - parseInt(lastShown, 10) > sevenDays;
-          if (canShow) {
-            setTimeout(() => {
-              if (!isMounted.current) return;
-              setPaywallContext("post_first_scan");
-              setShowPaywall(true);
-              AsyncStorage.setItem(STORAGE_KEYS.paywallLastShown, String(Date.now())).catch(() => {});
-            }, 1500);
-          }
-        }
-      }
+      // Paywall only triggers when the user hits the 10-scan limit (handled above in consumeScan)
     } catch (err) {
       if (!isMounted.current) return;
 
