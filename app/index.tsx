@@ -75,14 +75,15 @@ export default function HomeScreen() {
 
   /** Load a past workout into the scanner as an active session */
   const handleRepeat = async (entry: HistoryEntry) => {
-    const exercises: WorkoutExercise[] = (entry.exercises ?? []).map((ex) => ({
+    if (!entry.exercises?.length) return;
+    const exercises: WorkoutExercise[] = entry.exercises.map((ex, idx) => ({
       name: ex.name,
       sets: ex.sets,
       reps: ex.reps,
       intensity: "Intermediate",
       muscleGroups: ex.muscleGroups ?? [],
       description: ex.description ?? "",
-      equipment: entry.equipment_used?.[0] ?? "",
+      equipment: entry.equipment_used?.[idx] ?? entry.equipment_used?.[0] ?? "",
       rest_seconds: 60,
     }));
 
@@ -227,7 +228,7 @@ export default function HomeScreen() {
           <View style={{ marginTop: 8 }}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>RECENT WORKOUTS</Text>
-              <TouchableOpacity onPress={() => router.push("/history")}>
+              <TouchableOpacity onPress={() => router.navigate("/history")}>
                 <Text style={styles.viewAll}>View All</Text>
               </TouchableOpacity>
             </View>

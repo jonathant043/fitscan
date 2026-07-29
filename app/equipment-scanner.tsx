@@ -42,7 +42,6 @@ import { loadProfile, type UserProfile } from "../lib/profileStorage";
 import { getWeightUnit, setWeightUnit, toDisplay, toLbs, type WeightUnit } from "../lib/weightUnit";
 import { checkProEntitlement } from "../lib/purchases";
 import { scheduleRestTimerNotification, cancelRestTimerNotification, vibrateOnTimerComplete } from "../lib/restTimer";
-import { isMonetizationEnabled } from "../lib/monetization";
 import Paywall from "./paywall";
 import { schedulePostWorkoutNotifications } from "../lib/notifications";
 import * as StoreReview from "expo-store-review";
@@ -169,7 +168,10 @@ function WorkoutExerciseCard({
   const [expanded, setExpanded] = useState(true);
 
   const numSets = parseInt(ex.sets, 10) || 3;
+  // Parse first number from rep range for placeholder (e.g. "8-12" → 8, "10" → 10)
   const suggestedReps = parseInt(ex.reps, 10) || 10;
+  // Keep full reps string for display (e.g. "8-12" stays "8-12")
+  const repsDisplay = ex.reps || String(suggestedReps);
 
   return (
     <View style={styles.exerciseCard}>
@@ -191,7 +193,7 @@ function WorkoutExerciseCard({
         </View>
         <View style={styles.exerciseMetaRow}>
           <Text style={styles.exerciseMeta}>
-            {ex.sets} sets × {ex.reps} reps
+            {ex.sets} sets × {repsDisplay} reps
           </Text>
           {ex.rest_seconds ? (
             <Text style={styles.exerciseMeta}>{ex.rest_seconds}s rest</Text>
@@ -207,7 +209,9 @@ function WorkoutExerciseCard({
               <Ionicons name="time-outline" size={12} color="#64748b" />
               <Text style={styles.lastTimeText}>
                 Last: {lastTimeLogs.map((l) =>
-                  `${toDisplay(l.weightLbs, weightUnit)}${weightUnit} × ${l.reps}`
+                  l.weightLbs === 0
+                    ? `BW × ${l.reps}`
+                    : `${toDisplay(l.weightLbs, weightUnit)}${weightUnit} × ${l.reps}`
                 ).join(', ')}
               </Text>
             </View>
@@ -226,7 +230,9 @@ function WorkoutExerciseCard({
             const log = setLogs.find((l) => l.setNumber === i + 1);
             const lastLog = lastTimeLogs?.[i];
             const displayWeight = log ? toDisplay(log.weightLbs, weightUnit) : undefined;
-            const placeholderWeight = lastLog ? String(toDisplay(lastLog.weightLbs, weightUnit)) : '0';
+            const placeholderWeight = lastLog
+              ? (lastLog.weightLbs === 0 ? 'BW' : String(toDisplay(lastLog.weightLbs, weightUnit)))
+              : '0';
             const placeholderReps = lastLog ? String(lastLog.reps) : String(suggestedReps);
 
             return (
@@ -593,9 +599,11 @@ export default function EquipmentScannerScreen() {
   });
 
   // -------------------------------------------------------------------------
-  // Permissions
+  // Permissions — only gate camera views, not restored workout sessions
   // -------------------------------------------------------------------------
-  if (!permission) {
+  const needsCamera = !restoringSession && (view === "camera" || view === "single-result");
+
+  if (needsCamera && !permission) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={COLORS.primary} />
@@ -604,7 +612,7 @@ export default function EquipmentScannerScreen() {
     );
   }
 
-  if (!permission.granted) {
+  if (needsCamera && !permission?.granted) {
     return (
       <View style={styles.centered}>
         <View style={styles.permissionIconCircle}>
@@ -647,24 +655,14 @@ export default function EquipmentScannerScreen() {
   const handleCaptureAndAnalyze = async () => {
     if (!cameraRef.current || isAnalyzing) return;
 
-    // Check scan limit before taking the photo (only when monetization is active)
-    if (isMonetizationEnabled()) {
+    // Check + consume scan atomically — always enforce client-side limits
+    const { allowed, scansUsed: consumedScansUsed, scansRemaining } = await consumeScan();
+    if (!allowed) {
+      setPaywallScansUsed(consumedScansUsed);
       const status = await getSubscriptionStatus();
-      if (!status.isPro && status.scansUsed >= SCAN_LIMIT.free) {
-        setPaywallScansUsed(status.scansUsed);
-        setPaywallDaysUntilReset(status.daysUntilReset);
-        setShowPaywall(true);
-        return;
-      }
-
-      // Consume one scan (increments counter)
-      const { allowed, scansUsed: consumedScansUsed } = await consumeScan();
-      if (!allowed) {
-        setPaywallScansUsed(consumedScansUsed);
-        setPaywallDaysUntilReset(status.daysUntilReset);
-        setShowPaywall(true);
-        return;
-      }
+      setPaywallDaysUntilReset(status.daysUntilReset);
+      setShowPaywall(true);
+      return;
     }
 
     try {
@@ -712,8 +710,8 @@ export default function EquipmentScannerScreen() {
         await AsyncStorage.setItem(STORAGE_KEYS.firstScanDone, "true");
         trackEvent("first_scan_success", undefined, { equipment_type: result.equipment_type }).catch(() => {});
       }
-      // Show paywall if monetization is on, user is not pro, and we haven't auto-shown in 7 days
-      if (isMonetizationEnabled()) {
+      // Show paywall if user is not pro and we haven't auto-shown in 7 days
+      {
         const isPro = await checkProEntitlement();
         if (!isPro) {
           const lastShown = await AsyncStorage.getItem(STORAGE_KEYS.paywallLastShown);
@@ -732,16 +730,14 @@ export default function EquipmentScannerScreen() {
     } catch (err) {
       if (!isMounted.current) return;
 
-      // Server-side scan limit hit (only show paywall when monetization is active)
+      // Server-side scan limit hit
       if (err instanceof ApiError && err.message === "SCAN_LIMIT") {
-        if (isMonetizationEnabled()) {
-          const data = err.data as { used?: number; limit?: number } | undefined;
-          setPaywallScansUsed(data?.used ?? SCAN_LIMIT.free);
-          setPaywallDaysUntilReset(0);
-          setPaywallContext("scan_limit");
-          setShowPaywall(true);
-          trackEvent("scan_limit_hit", undefined, { used: data?.used, limit: data?.limit }).catch(() => {});
-        }
+        const data = err.data as { used?: number; limit?: number } | undefined;
+        setPaywallScansUsed(data?.used ?? SCAN_LIMIT.free);
+        setPaywallDaysUntilReset(0);
+        setPaywallContext("scan_limit");
+        setShowPaywall(true);
+        trackEvent("scan_limit_hit", undefined, { used: data?.used, limit: data?.limit }).catch(() => {});
         return;
       }
 
@@ -766,8 +762,8 @@ export default function EquipmentScannerScreen() {
   const handleAddToQueue = async () => {
     if (!currentResult) return;
 
-    // Multi-scan gate: adding 2nd+ item requires Pro (only when monetization is active)
-    if (isMonetizationEnabled() && scannedItems.length >= 1) {
+    // Multi-scan gate: adding 2nd+ item requires Pro
+    if (scannedItems.length >= 1) {
       const isPro = await checkProEntitlement();
       if (!isPro) {
         setPaywallContext("multiscan_gate");
@@ -812,6 +808,8 @@ export default function EquipmentScannerScreen() {
     return doBuildWorkout();
   };
 
+  const [generatingSlowHint, setGeneratingSlowHint] = useState(false);
+
   const doBuildWorkout = async () => {
     const items =
       view === "single-result" && currentResult
@@ -830,8 +828,12 @@ export default function EquipmentScannerScreen() {
 
     const equipment_types = items.map((i) => i.equipment_type);
 
+    // Show slow hint after 8s
+    const hintTimer = setTimeout(() => setGeneratingSlowHint(true), 8_000);
+
     try {
       setIsGenerating(true);
+      setGeneratingSlowHint(false);
       const plan = await generateWorkout({ equipment_types, profile: userProfile ?? undefined });
       if (!isMounted.current) return;
       setWorkoutPlan(plan);
@@ -844,7 +846,11 @@ export default function EquipmentScannerScreen() {
       if (err instanceof ApiError) msg = err.message;
       Alert.alert("Workout generation failed", msg);
     } finally {
-      if (isMounted.current) setIsGenerating(false);
+      clearTimeout(hintTimer);
+      if (isMounted.current) {
+        setIsGenerating(false);
+        setGeneratingSlowHint(false);
+      }
     }
   };
 
@@ -864,12 +870,12 @@ export default function EquipmentScannerScreen() {
   const handleFinishWorkout = async () => {
     if (!workoutPlan) { handleReset(); router.push("/"); return; }
 
-    // Save workout with set logs — offline-first, never blocks UI
+    // Save workout with set logs — offline-first
     try {
       await saveWorkoutToHistory(workoutPlan, exerciseSetLogs);
-      clearPersistedSession(); // session complete — clear in-progress cache
+      clearPersistedSession();
     } catch {
-      // Data remains in AsyncStorage (workout + set logs) — will be restored on next open
+      Alert.alert("Save failed", "Your workout could not be saved. It will be restored next time you open the app.");
     }
 
     // Post-workout notifications (fire-and-forget)
@@ -1011,7 +1017,6 @@ export default function EquipmentScannerScreen() {
 
     return (
       <Modal visible animationType="slide" transparent={false} onRequestClose={handleReset}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={{ flex: 1, backgroundColor: COLORS.background }}>
           <View style={[styles.sheet, { flex: 1, maxHeight: "100%", borderRadius: 0, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.sheetHandle} />
@@ -1058,7 +1063,7 @@ export default function EquipmentScannerScreen() {
             ) : null}
 
             <Text style={styles.sectionTitle}>Log Your Sets</Text>
-            <GHScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" nestedScrollEnabled>
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
               {workoutPlan.exercises.map((ex, idx) => (
                 <View key={idx}>
                   <View style={styles.exerciseNumber}>
@@ -1076,7 +1081,7 @@ export default function EquipmentScannerScreen() {
                 </View>
               ))}
               <View style={{ height: 16 }} />
-            </GHScrollView>
+            </ScrollView>
 
             {/* Rest timer overlay */}
             {restTimerSeconds !== null && (
@@ -1106,7 +1111,6 @@ export default function EquipmentScannerScreen() {
             </View>
           </View>
         </View>
-        </GestureHandlerRootView>
       </Modal>
     );
   };
@@ -1222,6 +1226,11 @@ export default function EquipmentScannerScreen() {
           <Text style={styles.generatingSubtitle}>
             AI is crafting {scannedItems.length} equipment workout
           </Text>
+          {generatingSlowHint && (
+            <Text style={styles.slowHintText}>
+              Still working — this is taking longer than usual.
+            </Text>
+          )}
         </View>
       )}
 

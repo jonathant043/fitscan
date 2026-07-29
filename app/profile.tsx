@@ -27,7 +27,6 @@ import { restorePurchases, checkProEntitlement } from "../lib/purchases";
 import { deleteMyData } from "../lib/api";
 import { clearHistory } from "../lib/workoutHistory";
 import { COLORS, STORAGE_KEYS } from "../lib/constants";
-import { isMonetizationEnabled } from "../lib/monetization";
 import Paywall from "./paywall";
 
 const EXPERIENCE_LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
@@ -359,8 +358,8 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Upgrade to Pro — hidden when monetization flag is off */}
-      {!isPro && isMonetizationEnabled() && (
+      {/* Upgrade to Pro */}
+      {!isPro && (
         <TouchableOpacity
           style={styles.upgradeRow}
           onPress={() => setShowPaywall(true)}

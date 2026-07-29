@@ -91,6 +91,8 @@ export interface UserProfile {
   primaryGoal?: string;
   daysPerWeek?: number;
   equipmentAccess?: string[];
+  trainingLocation?: string;
+  avoidAreas?: string[];
 }
 
 export interface Exercise {
@@ -246,8 +248,8 @@ export async function generateWorkout(
         headers: { 'Content-Type': 'application/json', ...customerHeader },
         body: JSON.stringify(request),
       },
-      // Allow extra time for multi-exercise AI generation
-      API_CONFIG.timeout * 1.5
+      // Backend times out at 15s; no need to wait longer than that + network buffer
+      API_CONFIG.timeout
     );
 
     if (!response.ok) {

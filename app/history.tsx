@@ -178,14 +178,15 @@ export default function HistoryScreen() {
 
   /** Convert a HistoryEntry back into a WorkoutPlan and load it as an active session */
   const handleRepeat = async (entry: HistoryEntry) => {
-    const exercises: WorkoutExercise[] = (entry.exercises ?? []).map((ex) => ({
+    if (!entry.exercises?.length) return;
+    const exercises: WorkoutExercise[] = entry.exercises.map((ex, idx) => ({
       name: ex.name,
       sets: ex.sets,
       reps: ex.reps,
       intensity: "Intermediate",
       muscleGroups: ex.muscleGroups ?? [],
       description: ex.description ?? "",
-      equipment: entry.equipment_used?.[0] ?? "",
+      equipment: entry.equipment_used?.[idx] ?? entry.equipment_used?.[0] ?? "",
       rest_seconds: 60,
     }));
 
