@@ -403,6 +403,7 @@ export default function EquipmentScannerScreen() {
 
   // Full workout state
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingSlowHint, setGeneratingSlowHint] = useState(false);
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
 
   const [view, setView] = useState<ScreenView>("camera");
@@ -807,8 +808,6 @@ export default function EquipmentScannerScreen() {
     }
     return doBuildWorkout();
   };
-
-  const [generatingSlowHint, setGeneratingSlowHint] = useState(false);
 
   const doBuildWorkout = async () => {
     const items =
