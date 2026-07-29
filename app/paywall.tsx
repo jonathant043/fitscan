@@ -1,7 +1,7 @@
 // app/paywall.tsx
 // Paywall modal — rebuilt on RevenueCat + Google Play Billing.
 // Prices from RevenueCat offerings (single source of truth).
-// All user-visible behavior gated behind MONETIZATION_ENABLED server flag.
+// Paywall triggers when free scan limit (10/month) is reached.
 
 import React, { useState, useEffect } from "react";
 import {

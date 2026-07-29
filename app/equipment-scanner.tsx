@@ -785,7 +785,7 @@ export default function EquipmentScannerScreen() {
           "You have logged sets that haven't been saved. Building a new workout will discard them.",
           [
             { text: "Cancel", style: "cancel", onPress: () => resolve() },
-            { text: "Discard", style: "destructive", onPress: () => { doBuildWorkout(); resolve(); } },
+            { text: "Discard", style: "destructive", onPress: () => { doBuildWorkout().catch(() => {}); resolve(); } },
           ]
         );
       });
